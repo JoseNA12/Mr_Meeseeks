@@ -4,8 +4,11 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <time.h>
+#include <signal.h>
 
 #define SIZE 256
+int instancia = 1;
+int nivel = 1;
 
 // [3]: google-chrome, geany, atom, pinta
 
@@ -32,15 +35,15 @@ void consultaTextual() {
     pid_t pid = fork();
 
     if (pid == 0) {
-        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%i, %i, 1, 1)\n\n", getpid(), getppid());
+        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n\n", getpid(), getppid(), nivel, instancia);
         printf("Escribe tu petición:\n>>> ");
         scanf("%s", peticion);
         printf("\n¿Conocés la dificultad de tu petición? [y/n]:\n>>> ");
         scanf("%c", &respuesta);
 
         if (respuesta == 'y') {
-            printf("\n>>> Rango de 0 a 100: ");
-            scanf("%i", &dificultad);
+            printf("\nRango de 0 a 100: >>> ");
+            scanf("%d", &dificultad);
         }
         else {
             dificultad = generarDificultad();
@@ -51,27 +54,28 @@ void consultaTextual() {
     }
 }
 
-void calculoMatematico() {
+int calculoMatematico() {
     char hileras[SIZE];
     printf("\nIngrese la hilera matemática:\n>>> ");
     scanf("%s", hileras);
 
     int a,b;
     char op;
-    if (sscanf(hileras, "%d %c%d", &a, &op, &b) != 3) {
+    int resultado; 
+    if (sscanf(hileras, "%d %c %d", &a, &op, &b) != 3) { // parsear el string y obtener los valores
         printf("\n*** Formato inválido de las hileras ***");
+        return resultado;
     }
     else {
-        int resultado; 
         switch (op) {
             case '+': resultado = a + b; break;
             case '-': resultado = a - b; break;
             case '*': resultado = a * b; break;
             case '/': resultado = a / b; break;
             default:
-            printf("\n*** Operador de las hileras inválido ***\n");
+                printf("\n*** Operador de las hileras inválido ***\n");
         }
-        printf("= %i", resultado);
+        return resultado;
     }
 }
 
@@ -92,42 +96,45 @@ void box_Mr_Meeseeks() {
         printf("    [3] - Ejecutar un programa\n\n>>> ");
 
         int solicitud;
-        scanf("%i", &solicitud);
+        scanf("%d", &solicitud);
 
-        if (solicitud == 1) {
+        if (solicitud == 1) { // Consulta textual
             consultaTextual();
         }
-        else if (solicitud == 2)
+        else if (solicitud == 2) // Cálculo matemático
         {
             pid_t pid = fork();
 
             if (pid == 0) {
-                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%i, %i, 1, 1)\n", getpid(), getppid());
-                calculoMatematico();
+                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), nivel, instancia);
+                int resultado = calculoMatematico();
+                printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %d\n", getpid(), getppid(), nivel, instancia, resultado);
+                
             }
             else {
                 wait(NULL); // Esperar por el proceso hijo creado
             }
         }
-        else if (solicitud == 3)
+        else if (solicitud == 3) // Ejecutar un programa
         {
             pid_t pid = fork();
 
             if (pid == 0) {
-                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%i, %i, 1, 1)\n", getpid(), getppid());
+                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), nivel, instancia);
                 
                 int status = ejecutarPrograma();
 
                 switch (status) {
-                case -1:
-                    printf("\nMr. Meeseeks (%i): Error al ejecutar el programa ingresado!\n", getpid());
-                    break;
-                
-                case 0:
-                    printf("\nMr. Meeseeks (%i): El programa se ha ejecutado!\n", getpid());
-                    break;
-                default:
-                    break;
+                    case -1:
+                        printf("\nMr. Meeseeks (%d, %d, %d, %d): Error al ejecutar el programa ingresado!\n", getpid(), getppid(), nivel, instancia);
+                        break;
+                    
+                    case 0:
+                        printf("\nMr. Meeseeks (%d, %d, %d, %d): El programa se ha ejecutado!\n", getpid(), getppid(), nivel, instancia);
+                        break;
+                        
+                    default:
+                        break;
                 }
             }
             else {
