@@ -7,6 +7,10 @@
 #include <signal.h>
 
 #define SIZE 256
+#define MAXTIME 90 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
+#define MAXTIMEREQ 5 // Tiempo máximo en responder una petición
+#define MINTIMEREQ 0.5 // Tiempo mínimo en responder una petición
+
 int instancia = 1;
 int nivel = 1;
 
@@ -109,10 +113,10 @@ void box_Mr_Meeseeks() {
                 printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), nivel, instancia);
                 int resultado = calculoMatematico();
                 printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %d\n", getpid(), getppid(), nivel, instancia, resultado);
-                
+                kill(getpid(), SIGTERM); // Eliminar el proceso hijo
             }
             else {
-                wait(NULL); // Esperar por el proceso hijo creado
+                wait(NULL); // Esperar que el proceso hijo complete su tarea
             }
         }
         else if (solicitud == 3) // Ejecutar un programa
@@ -136,9 +140,10 @@ void box_Mr_Meeseeks() {
                     default:
                         break;
                 }
+                kill(getpid(), SIGTERM); // Eliminar el proceso hijo
             }
             else {
-                wait(NULL); // Esperar por el proceso hijo creado
+                wait(NULL); // Esperar que el proceso hijo complete su tarea
             }
         }
         else if (solicitud == -1)
