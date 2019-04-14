@@ -5,52 +5,77 @@
 #include <stdlib.h>
 #include <time.h>
 #include <signal.h>
+#include <math.h>
 
-#define SIZE 256
-#define MAXTIME 90 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
-#define MAXTIMEREQ 5 // Tiempo máximo en responder una petición
-#define MINTIMEREQ 0.5 // Tiempo mínimo en responder una petición
+#define SIZE 256 // Tamaño de la variable para recibir el input del usuario
+#define TIEMPOMAX 90 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
+#define TIEMPOMAXREQ 5 // Tiempo máximo en responder una petición
+#define TIEMPOMINREQ 0.5 // Tiempo mínimo en responder una petición
+// Parametros de la distribucion normal
+#define MEDIA 0
+#define VARIANZA 1
+#define RANGO 1
+#define N 10000
 
-int instancia = 1;
-int nivel = 1;
+#define DIFICULTADMAX 100
+#define DIFICULTADMIN 0
 
 // [3]: google-chrome, geany, atom, pinta
+// gcc main.c -o main -lm
 
 
-int generarDificultad(){
-    //Obtener una semilla para la generación de randoms
-    srand(time(NULL));
-    /*
-     * Para generar un número aleatorio que se aproxima a una distribución normal
-     * se generan 10 números random desde la función rand() y luego se dividen entre 10
-    */
-    int randomsSum = 0;
-    for (int c = 1; c <= 10; c++) {
-        randomsSum += rand() % 101;
+// http://cypascal.blogspot.com/2016/02/crear-una-distribucion-normal-en-c.html
+float distribucionNormal(){
+    srand(time(NULL));  // Reiniciar la semilla de rand()
+    int i = 1; float aux;
+
+    for(i; i <= N; i++){
+        aux += (float)rand()/RAND_MAX;
     }
-    return randomsSum/10;
+    return fabs(VARIANZA * sqrt((float)12/N) * (aux - (float)N/2) + MEDIA) * RANGO;
+}
+
+// Algoritmo Marsaglia
+float getNumDistrNormal(){
+    float value, x, y, rsq, f;
+
+    do {
+        x = 2.0 * rand() / (float)RAND_MAX - 1.0;
+        y = 2.0 * rand() / (float)RAND_MAX - 1.0;
+        rsq = x * x + y * y;
+    } while( rsq >= 1. || rsq == 0. );
+    
+    f = sqrt( -2.0 * log(rsq) / rsq );
+    // (x * f) is a number between [-3, 2.9]
+    // (x * f) + 3 to get a number between [0, 5.9]
+    // ((x * f) + 3) * 100 / 5.9 to get a number between [0, 100]
+    value = ((x * f) + 3) * DIFICULTADMAX / 5.9; // maxNum = highest number
+    if (value > DIFICULTADMAX) value = DIFICULTADMAX; // In case value is > 100
+    else if (value < DIFICULTADMIN) value = DIFICULTADMIN; // In case value is < 0
+
+    return value;
 }
 
 void consultaTextual() {
     char peticion[SIZE];
     char respuesta;
-    int dificultad = -1;
+    float dificultad;
 
     pid_t pid = fork();
 
     if (pid == 0) {
-        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n\n", getpid(), getppid(), nivel, instancia);
+        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n\n", getpid(), getppid(), 1, 1);
         printf("Escribe tu petición:\n>>> ");
         scanf("%s", peticion);
         printf("\n¿Conocés la dificultad de tu petición? [y/n]:\n>>> ");
-        scanf("%c", &respuesta);
+        scanf(" %c", &respuesta);
 
         if (respuesta == 'y') {
             printf("\nRango de 0 a 100: >>> ");
-            scanf("%d", &dificultad);
+            scanf("%f", &dificultad);
         }
         else {
-            dificultad = generarDificultad();
+            dificultad = distribucionNormal() * getNumDistrNormal();
         }
     }
     else {
@@ -110,9 +135,9 @@ void box_Mr_Meeseeks() {
             pid_t pid = fork();
 
             if (pid == 0) {
-                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), nivel, instancia);
+                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), 1, 1);
                 int resultado = calculoMatematico();
-                printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %d\n", getpid(), getppid(), nivel, instancia, resultado);
+                printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %d\n", getpid(), getppid(), 1, 1, resultado);
                 kill(getpid(), SIGTERM); // Eliminar el proceso hijo
             }
             else {
@@ -124,17 +149,17 @@ void box_Mr_Meeseeks() {
             pid_t pid = fork();
 
             if (pid == 0) {
-                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), nivel, instancia);
+                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), 1, 1);
                 
                 int status = ejecutarPrograma();
 
                 switch (status) {
                     case -1:
-                        printf("\nMr. Meeseeks (%d, %d, %d, %d): Error al ejecutar el programa ingresado!\n", getpid(), getppid(), nivel, instancia);
+                        printf("\nMr. Meeseeks (%d, %d, %d, %d): Error al ejecutar el programa ingresado!\n", getpid(), getppid(), 1, 1);
                         break;
                     
                     case 0:
-                        printf("\nMr. Meeseeks (%d, %d, %d, %d): El programa se ha ejecutado!\n", getpid(), getppid(), nivel, instancia);
+                        printf("\nMr. Meeseeks (%d, %d, %d, %d): El programa se ha ejecutado!\n", getpid(), getppid(), 1, 1);
                         break;
                         
                     default:
