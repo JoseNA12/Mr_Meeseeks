@@ -6,6 +6,16 @@
 #include <time.h>
 #include <signal.h>
 #include <math.h>
+#include <semaphore.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <pthread.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <errno.h>
+#include <fcntl.h>
 
 #define SIZE 256 // Tamaño de la variable para recibir el input del usuario
 #define TIEMPOMAX 90 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
@@ -57,9 +67,51 @@ float getNumDistrNormal(){
 }
 
 void consultaTextual() {
+
     char peticion[SIZE];
     char respuesta;
     float dificultad;
+
+    /*** Variables de la Shared Memory ***/
+    key_t shmkey; // Shared memory key
+    int shmid; // Shared memory id
+    sem_t *sem; // Synch semaphore (shared)
+    pid_t pidChild = 0; // Fork pid
+    float *p; // Shared variable (shared)
+    unsigned int value = 1; // Semaphore value. Casi siempre es 1
+
+    /*** Time variables initialization ***/
+    time_t startTime, currentTime, localTime1, localTime2;
+    struct tm *startStruct;
+    struct tm currentStruct;
+    struct tm localTime1Struct;
+    struct tm localTime2Struct;
+    char buffer[160];
+    /*** End of time initialization ***/
+
+    /* Initialize shared variables in shared memory */
+    shmkey = ftok ("/dev/null", 5); // Retorna una key según el path y el id dado
+    shmid = shmget (shmkey, sizeof (int), 0644 | IPC_CREAT); // Crear Shared memory
+    if (shmid < 0) { // Shared memory error check
+        perror ("shmget\n");
+        exit (1);
+    }
+
+    // Initialize semaphores for shared processes
+    sem = sem_open ("pSem", O_CREAT | O_EXCL, 0644, value);  // Crea un semáforo si este no existe. Retorna la dirección del nuevo semáforo.
+    // Name of semaphore is "pSem", semaphore is reached using this name
+    sem_unlink ("pSem"); 
+    // Unlink prevents the semaphore existing forever
+    // if a crash occurs during the execution
+    //printf ("semaphores initialized.\n\n");
+
+    p = (float *) shmat (shmid, NULL, 0); // Asignar un puntero a la memoria compartida
+    *p = 0;
+    /*** Finished allocating shared memory ***/
+
+    /** Defines the start time **/
+    time(&startTime); // Segundos que han pasado desde January 1, 1970
+    startStruct = localtime(&startTime); // Transforma esos segundos en la fecha y hora actual
 
     pid_t pid = fork();
 
