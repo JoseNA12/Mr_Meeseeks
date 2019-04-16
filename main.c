@@ -18,20 +18,24 @@
 #include <fcntl.h>
 
 #define SIZE 256 // Tamaño de la variable para recibir el input del usuario
-#define TIEMPOMAX 90 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
+#define TIEMPOMAX 300 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
 #define TIEMPOMAXREQ 5 // Tiempo máximo en responder una petición
 #define TIEMPOMINREQ 0.5 // Tiempo mínimo en responder una petición
 // Parametros de la distribucion normal
 #define MEDIA 0
 #define VARIANZA 1
 #define RANGO 1
-#define N 10000
+#define CANTMUESTRAS 10000
 
 #define DIFICULTADMAX 100
 #define DIFICULTADMIN 0
 
+// Nivel de forks e instancias
+int N = 1;
+int I = 1;
+
 // [3]: google-chrome, geany, atom, pinta
-// gcc main.c -o main -lm
+// Compilar con: gcc main.c -o main -lm
 
 
 // http://cypascal.blogspot.com/2016/02/crear-una-distribucion-normal-en-c.html
@@ -39,31 +43,45 @@ float distribucionNormal(){
     srand(time(NULL));  // Reiniciar la semilla de rand()
     int i = 1; float aux;
 
-    for(i; i <= N; i++){
+    for(i; i <= CANTMUESTRAS; i++){
         aux += (float)rand()/RAND_MAX;
     }
-    return fabs(VARIANZA * sqrt((float)12/N) * (aux - (float)N/2) + MEDIA) * RANGO;
+    return fabs(VARIANZA * sqrt((float)12/CANTMUESTRAS) * (aux - (float)CANTMUESTRAS/2) + MEDIA) * RANGO;
 }
 
-// Algoritmo Marsaglia
-float getNumDistrNormal(){
-    float value, x, y, rsq, f;
+// Obtener un tiempo aleatorio entre en rango, máximo y mínimo
+float getNumDistrNormal(int max, int min) {
+    srand(time(NULL));  // Reiniciar la semilla de rand()
+    return rand() % (max + 1 - min) + min;
+}
 
-    do {
-        x = 2.0 * rand() / (float)RAND_MAX - 1.0;
-        y = 2.0 * rand() / (float)RAND_MAX - 1.0;
-        rsq = x * x + y * y;
-    } while( rsq >= 1. || rsq == 0. );
-    
-    f = sqrt( -2.0 * log(rsq) / rsq );
-    // (x * f) is a number between [-3, 2.9]
-    // (x * f) + 3 to get a number between [0, 5.9]
-    // ((x * f) + 3) * 100 / 5.9 to get a number between [0, 100]
-    value = ((x * f) + 3) * DIFICULTADMAX / 5.9; // maxNum = highest number
-    if (value > DIFICULTADMAX) value = DIFICULTADMAX; // In case value is > 100
-    else if (value < DIFICULTADMIN) value = DIFICULTADMIN; // In case value is < 0
+// Obtener un tiempo basado en la dificultad
+float setTiempo(float dificultad) {
+    float tiempo = (100 - dificultad) / 100 * 5;
+    if (0.5 > tiempo){
+        tiempo = 0.5;
+    }
+    return tiempo;
+}
 
-    return value;
+// Determinar la cantidad de Mr Meeseeks a crear
+int determinarHijos(float dificultad) {
+    if (dificultad >= 85.01) { // 100 - 85.01 = 0 hijos
+        return 0;
+    } else {
+        if (85 >= dificultad && dificultad > 45){ // 85 - 45.01 = min 1 hijo
+            return getNumDistrNormal(45, 1);
+        } else { // 45 - 0 = min 3 hijos
+            return getNumDistrNormal(85, 3);
+        }
+    }
+}
+
+pid_t crearFork() {
+    pid_t pid = fork();
+    printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n\n", getpid(), getppid(), N, I);
+
+    return pid;
 }
 
 void consultaTextual() {
@@ -71,68 +89,42 @@ void consultaTextual() {
     char peticion[SIZE];
     char respuesta;
     float dificultad;
+    float tiempo_tarea;
 
-    /*** Variables de la Shared Memory ***/
-    key_t shmkey; // Shared memory key
-    int shmid; // Shared memory id
-    sem_t *sem; // Synch semaphore (shared)
-    pid_t pidChild = 0; // Fork pid
-    float *p; // Shared variable (shared)
-    unsigned int value = 1; // Semaphore value. Casi siempre es 1
+    // variables del tiempo
+    time_t tiempoInicio, tiempoActual;
+    struct tm *structInicio;
+    struct tm structActual;
 
-    /*** Time variables initialization ***/
-    time_t startTime, currentTime, localTime1, localTime2;
-    struct tm *startStruct;
-    struct tm currentStruct;
-    struct tm localTime1Struct;
-    struct tm localTime2Struct;
-    char buffer[160];
-    /*** End of time initialization ***/
+    // Consultas al usuario
+    printf("Escribe tu petición:\n>>> ");
+    scanf("%s", peticion);
+    printf("\n¿Conocés la dificultad de tu petición? [y/n]:\n>>> ");
+    scanf(" %c", &respuesta);
 
-    /* Initialize shared variables in shared memory */
-    shmkey = ftok ("/dev/null", 5); // Retorna una key según el path y el id dado
-    shmid = shmget (shmkey, sizeof (int), 0644 | IPC_CREAT); // Crear Shared memory
-    if (shmid < 0) { // Shared memory error check
-        perror ("shmget\n");
-        exit (1);
-    }
-
-    // Initialize semaphores for shared processes
-    sem = sem_open ("pSem", O_CREAT | O_EXCL, 0644, value);  // Crea un semáforo si este no existe. Retorna la dirección del nuevo semáforo.
-    // Name of semaphore is "pSem", semaphore is reached using this name
-    sem_unlink ("pSem"); 
-    // Unlink prevents the semaphore existing forever
-    // if a crash occurs during the execution
-    //printf ("semaphores initialized.\n\n");
-
-    p = (float *) shmat (shmid, NULL, 0); // Asignar un puntero a la memoria compartida
-    *p = 0;
-    /*** Finished allocating shared memory ***/
-
-    /** Defines the start time **/
-    time(&startTime); // Segundos que han pasado desde January 1, 1970
-    startStruct = localtime(&startTime); // Transforma esos segundos en la fecha y hora actual
-
-    pid_t pid = fork();
-
-    if (pid == 0) {
-        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n\n", getpid(), getppid(), 1, 1);
-        printf("Escribe tu petición:\n>>> ");
-        scanf("%s", peticion);
-        printf("\n¿Conocés la dificultad de tu petición? [y/n]:\n>>> ");
-        scanf(" %c", &respuesta);
-
-        if (respuesta == 'y') {
-            printf("\nRango de 0 a 100: >>> ");
-            scanf("%f", &dificultad);
-        }
-        else {
-            dificultad = distribucionNormal() * getNumDistrNormal();
-        }
+    if (respuesta == 'y') {
+        printf("\nRango de 0 a 100: >>> ");
+        scanf("%f", &dificultad);
     }
     else {
-        wait(NULL); // Esperar por el proceso hijo creado
+        dificultad = distribucionNormal() * getNumDistrNormal(DIFICULTADMAX, DIFICULTADMIN);
     }
+
+    tiempo_tarea = setTiempo(dificultad);
+
+    // Definir la hora de inicio de la tarea
+    time(&tiempoInicio); // Segundos que han pasado desde January 1, 1970
+    structInicio = localtime(&tiempoInicio); // Transforma esos segundos en la fecha y hora actual
+
+    pid_t meeseeksPadre = crearFork();
+
+    tiempoActual = time(NULL);
+    structActual = *((struct tm*)localtime(&tiempoActual));
+
+    while (difftime(tiempoActual, tiempoInicio) < TIEMPOMAX) {
+
+    }
+    
 }
 
 int calculoMatematico() {
