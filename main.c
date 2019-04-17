@@ -16,6 +16,7 @@
 #include <sys/shm.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <string.h>
 
 #define SIZE 256 // Tamaño de la variable para recibir el input del usuario
 #define TIEMPOMAX 300 // Tiempo máximo antes de que todos los Mr. Meeseeks entren en un caos planetario
@@ -31,8 +32,8 @@
 #define DIFICULTADMIN 0
 
 // Nivel de forks e instancias
-int N = 1;
-int I = 1;
+int N = 0;
+int I = 0;
 
 // [3]: google-chrome, geany, atom, pinta
 // Compilar con: gcc main.c -o main -lm
@@ -57,9 +58,9 @@ float getNumDistrNormal(int max, int min) {
 
 // Obtener un tiempo basado en la dificultad
 float setTiempo(float dificultad) {
-    float tiempo = (100 - dificultad) / 100 * 5;
-    if (0.5 > tiempo){
-        tiempo = 0.5;
+    float tiempo = (100 - dificultad) / 100 * TIEMPOMAXREQ;
+    if (TIEMPOMINREQ > tiempo){
+        tiempo = TIEMPOMINREQ;
     }
     return tiempo;
 }
@@ -77,19 +78,63 @@ int determinarHijos(float dificultad) {
     }
 }
 
-pid_t crearFork() {
-    pid_t pid = fork();
-    printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n\n", getpid(), getppid(), N, I);
+// https://bytefreaks.net/programming-2/c-programming-2/cc-pass-value-from-parent-to-child-after-fork-via-a-pipe
+// Encargado de crear Pipes dentro de Padre e hijo
+void comunicarProcesos(int fd[2], pid_t pid, char mensaje[SIZE]) {
+    char *leerMensaje;
 
+    if (pid != 0) { // padre
+        close(fd[0]); // solo escritura
+
+        // Enviar el mensaje en el descriptor de escritura.
+        write(fd[1], &mensaje, sizeof(&mensaje));
+        //printf("Padre (%d) envia envia: %s\n", getpid(), mensaje);
+
+        close(fd[1]); // cierra el descriptor de escritura
+    } 
+    else {
+        close(fd[1]); // solo lectura, cierra el descriptor de escritura
+
+        // Ahora lee los datos (se bloqueará hasta que tenga éxito)
+        read(fd[0], &leerMensaje, sizeof(leerMensaje));
+        //printf("El hijo (%d) recibe: %s\n", getpid(), leerMensaje);
+
+        close(fd[0]); // cerrar el descriptor de lectura
+    }
+}
+
+int* crearPipe() { 
+    static int fd[2]; 
+    int retornoPipe;
+    
+    pipe(fd); // crear descriptores de tubería
+    retornoPipe = pipe(fd);
+
+    if (retornoPipe == -1) {
+        printf("No se ha podido crear el pipe\n");
+    }
+    return fd;
+}
+
+pid_t crearFork(char peticion[SIZE]) {
+    int* fd = crearPipe();
+    pid_t pid = fork();
+
+    comunicarProcesos(fd, pid, peticion);
+
+    if (pid < 0) {
+        fprintf(stderr, "Error al crear el Mr Meeseek :(\n");
+    } 
+    else if (pid == 0) { // Proceso hijo
+        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", 
+            getpid(), getppid(), N, I);
+    }
     return pid;
 }
 
 void consultaTextual() {
-
-    char peticion[SIZE];
-    char respuesta;
-    float dificultad;
-    float tiempo_tarea;
+    char peticion[SIZE], respuesta;
+    float dificultad, tiempo_tarea;
 
     // variables del tiempo
     time_t tiempoInicio, tiempoActual;
@@ -116,27 +161,27 @@ void consultaTextual() {
     time(&tiempoInicio); // Segundos que han pasado desde January 1, 1970
     structInicio = localtime(&tiempoInicio); // Transforma esos segundos en la fecha y hora actual
 
-    pid_t meeseeksPadre = crearFork();
+    pid_t meeseekPadre = crearFork(peticion);
 
-    tiempoActual = time(NULL);
+    /*tiempoActual = time(NULL);
     structActual = *((struct tm*)localtime(&tiempoActual));
 
     while (difftime(tiempoActual, tiempoInicio) < TIEMPOMAX) {
+        printf("%f \n", difftime(tiempoActual, tiempoInicio));
 
-    }
+        tiempoActual = time(NULL);
+        structActual = *((struct tm*)localtime(&tiempoActual));
+    }*/
     
 }
 
-int calculoMatematico() {
-    char hileras[SIZE];
-    printf("\nIngrese la hilera matemática:\n>>> ");
-    scanf("%s", hileras);
-
+// Calculo matematico de operaciones binarias
+int calculoMatematico(char hileras[SIZE]) {
     int a,b;
     char op;
     int resultado; 
     if (sscanf(hileras, "%d %c %d", &a, &op, &b) != 3) { // parsear el string y obtener los valores
-        printf("\n*** Formato inválido de las hileras ***");
+        printf("\nMr. Meeseeks (%d, %d, %d, %d): Formato inválido de las hileras\n", getpid(), getppid(), N+1, I+1);
         return resultado;
     }
     else {
@@ -146,23 +191,19 @@ int calculoMatematico() {
             case '*': resultado = a * b; break;
             case '/': resultado = a / b; break;
             default:
-                printf("\n*** Operador de las hileras inválido ***\n");
+                printf("\nMr. Meeseeks (%d, %d, %d, %d): Operador de las hileras inválido\n", getpid(), getppid(), N+1, I+1);
         }
         return resultado;
     }
 }
 
-int ejecutarPrograma() {
-    char path[SIZE];
-    printf("\nIngrese el path/comando del programa:\n>>> ");
-    scanf("%s", path);
-
+int ejecutarPrograma(char path[SIZE]) {
     return system(path); // valor de retorno del programa ejecutado (0 o 1)
 }
 
 void box_Mr_Meeseeks() {
     while(1) {
-        printf("\n\n===================== Box Mr.Meeseeks =====================\n\n");
+        printf("\n\n======================== Box Mr.Meeseeks ========================\n\n");
         printf("Esperando una solicitud:\n");
         printf("    [1] - Consulta textual\n");
         printf("    [2] - Cálculo matemático\n");
@@ -176,12 +217,16 @@ void box_Mr_Meeseeks() {
         }
         else if (solicitud == 2) // Cálculo matemático
         {
-            pid_t pid = fork();
+            char hileras[SIZE];
+            printf("\nIngrese la hilera matemática:\n>>> ");
+            scanf("%s", hileras);
+
+            pid_t pid = crearFork(strcat(hileras, " -> [Cálculo matemático]" ));
 
             if (pid == 0) {
-                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), 1, 1);
-                int resultado = calculoMatematico();
-                printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %d\n", getpid(), getppid(), 1, 1, resultado);
+                int resultado = calculoMatematico(hileras);
+
+                printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %d\n", getpid(), getppid(), N+1, I+1, resultado);
                 kill(getpid(), SIGTERM); // Eliminar el proceso hijo
             }
             else {
@@ -190,12 +235,14 @@ void box_Mr_Meeseeks() {
         }
         else if (solicitud == 3) // Ejecutar un programa
         {
-            pid_t pid = fork();
+            char path[SIZE];
+            printf("\nIngrese el path/comando del programa:\n>>> ");
+            scanf("%s", path);
+
+            pid_t pid = crearFork(strcat(path, " -> [Ejecutar un programa]"));
 
             if (pid == 0) {
-                printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", getpid(), getppid(), 1, 1);
-                
-                int status = ejecutarPrograma();
+                int status = ejecutarPrograma(path);
 
                 switch (status) {
                     case -1:
