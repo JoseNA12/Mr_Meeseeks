@@ -1,37 +1,128 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h>          /* printf()                 */
+#include <stdlib.h>         /* exit(), malloc(), free() */
+#include <sys/types.h>      /* key_t, sem_t, pid_t      */
+#include <sys/shm.h>        /* shmat(), IPC_RMID        */
+#include <errno.h>          /* errno, ECHILD            */
+#include <semaphore.h>      /* sem_open(), sem_destroy(), sem_wait().. */
+#include <fcntl.h>          /* O_CREAT, O_EXEC          */
+#include <sys/wait.h>
 #include <unistd.h>
+#include <time.h>
+#include <string.h>
+#include <math.h>
 
 
-int main(int argc, char *argv[]) {
-	int fd[2];
-	int childID = 0;
+void semaforo() {
+	int i;                        /*      loop variables          */
+    key_t shMemoryKey;            /*      shared memory key       */
+    int shMemoryID;               /*      shared memory id        */
+    sem_t *miSemaforo;            /*      synch semaphore         *//*shared */
+    pid_t pid;                    /*      fork pid                */
+    int *sharedVariable;          /*      shared variable         *//*shared */
+    unsigned int n;               /*      fork count              */
+    unsigned int value;           /*      semaphore value         */
 
-	// create pipe descriptors
-	pipe(fd);
+    /* initialize a shared variable in shared memory */
+    shMemoryKey = ftok("/dev/null", 5);       /* valid directory name and a number */
+    printf("shMemoryKey for sharedVariable = %d\n", shMemoryKey);
+    shMemoryID = shmget(shMemoryKey, sizeof (int), 0644 | IPC_CREAT);
+    if (shMemoryID < 0){                           /* shared memory error check */
+        perror("shmget\n");
+        exit(1);
+    }
 
-	// fork() returns 0 for child process, child-pid for parent process.
-	if (fork() != 0) {
-		// parent: writing only, so close read-descriptor.
-		close(fd[0]);
+    sharedVariable = (int *) shmat (shMemoryID, NULL, 0);   /* attach sharedVariable to shared memory */
+    *sharedVariable = 0;
+    printf("sharedVariable=%d is allocated in shared memory.\n\n", *sharedVariable);
 
-		// send the childID on the write-descriptor.
-		childID = 1;
-		write(fd[1], &childID, sizeof(childID));
-		printf("Parent(%d) send childID: %d\n", getpid(), childID);
+    /********************************************************/
 
-		// close the write descriptor
-		close(fd[1]);
-	} else {
-		// child: reading only, so close the write-descriptor
-		close(fd[1]);
+    printf("How many children do you want to fork?\n");
+    printf("Fork count: ");
+    scanf("%u", &n);
 
-		// now read the data (will block until it succeeds)
-		read(fd[0], &childID, sizeof(childID));
-		printf("Child(%d) received childID: %d\n", getpid(), childID);
+    printf("What do you want the semaphore value to be?\n");
+    printf("Semaphore value: ");
+    scanf("%u", &value);
 
-		// close the read-descriptor
-		close(fd[0]);
-	}
-	return 0;
+    /* initialize semaphores for shared processes */
+    miSemaforo = sem_open("pSem", O_CREAT | O_EXCL, 0644, value); 
+    /* name of semaphore is "pSem", semaphore is reached using this name */
+
+    printf("semaphores initialized.\n\n");
+
+
+    /* fork child processes */
+    for (i = 0; i < n; i++){
+        pid = fork();
+        if (pid < 0) {
+        /* check for error      */
+            sem_unlink("pSem");   
+            sem_close(miSemaforo);  
+            /* unlink prevents the semaphore existing forever */
+            /* if a crash occurs during the execution         */
+            printf ("Fork error.\n");
+        }
+        else if (pid == 0)
+            break;                  /* child processes */
+    }
+
+
+    /******************************************************/
+    /******************   PARENT PROCESS   ****************/
+    /******************************************************/
+    if (pid != 0) {
+        /* wait for all children to exit */
+        while (pid = waitpid (-1, NULL, 0)){
+            if (errno == ECHILD)
+                break;
+        }
+
+        printf ("\nParent: All children have exited.\n");
+
+        /* shared memory detach */
+        shmdt(sharedVariable);
+        shmctl(shMemoryID, IPC_RMID, 0);
+
+        /* cleanup semaphores */
+        sem_unlink("pSem");   
+        sem_close(miSemaforo);  
+        /* unlink prevents the semaphore existing forever */
+        /* if a crash occurs during the execution         */
+        exit(0);
+    }
+
+    /******************************************************/
+    /******************   CHILD PROCESS   *****************/
+    /******************************************************/
+    else {
+        sem_wait(miSemaforo);           /* sharedVariable operation */
+        printf("  Child(%d) is in critical section.\n", i);
+        sleep(1);
+        *sharedVariable += i % 3;              /* increment *sharedVariable by 0, 1 or 2 based on i */
+        printf("  Child(%d) new value of *sharedVariable=%d.\n", i, *sharedVariable);
+        sem_post(miSemaforo);           /* V operation */
+        exit(0);
+    }
+}
+
+void tiempo() {
+    clock_t inicioRelojTotal;
+    clock_t inicioRelojPensar;
+    double tiempoTotalInvertido = 0.0;
+    double tiempoPensarInvertido = 0.0;
+
+    float TIEMPOMAX = 4;
+    float tiempoPensar = 2;
+
+    while (tiempoTotalInvertido < TIEMPOMAX) {
+        printf(" tiempo: %lf\n", tiempoTotalInvertido);
+        tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
+    }
+}
+
+int main (int argc, char **argv){
+	//semaforo();
+
+    tiempo();
 }
