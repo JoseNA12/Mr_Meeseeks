@@ -35,7 +35,7 @@ float TIEMPOMAX = 300.0; // Tiempo máximo antes de que todos los Mr. Meeseeks e
 
 // Nivel de forks e instancias
 int N = 0;
-int I = 0;
+//int I = 0;
 
 // [3]: google-chrome, geany, atom, pinta
 // Compilar con: gcc main.c -o main -lm -pthread
@@ -59,7 +59,7 @@ float getNumDistrNormal(int max, int min) {
 }
 
 // Obtener un tiempo basado en la dificultad
-float setTiempoTarea(float dificultad) {
+float setTiempoSolicitud(float dificultad) {
     float tiempo = (100 - dificultad) / 100 * TIEMPOMAXREQ;
     if (TIEMPOMINREQ > tiempo){
         tiempo = TIEMPOMINREQ;
@@ -117,7 +117,7 @@ int* crearPipe() {
     return fd;
 }
 
-pid_t crearFork(char peticion[SIZE]) {
+pid_t crearFork(char peticion[SIZE], int I) {
     int* fd = crearPipe();
     pid_t pid = fork();
 
@@ -155,16 +155,12 @@ char* mensajeEspera() {
 
 void consultaTextual() {
     char peticion[SIZE], respuesta;
-    float dificultad, tiempo_tarea;
+    float dificultad, tiempo_solicitud;
     int tieneDificultad = 0;  // determinar si el usuario ingresó una dificultad
     pid_t procesoBoxMrMeeseek = getpid(); // proceso original (sin haber creado ningun mr meeseek)
 
     // variables del tiempo
-    time_t tiempoInicio, tiempoActual, tiempoLocal_1, tiempoLocal_2;
-    struct tm *structInicio;
-    struct tm structActual;
-    struct tm strucTiempoLocal_1;
-    struct tm strucTiempoLocal_2;
+
 
     // Consultas al usuario
     printf("\nEscribe tu petición:\n>>> ");
@@ -181,61 +177,55 @@ void consultaTextual() {
         dificultad = distribucionNormal() * getNumDistrNormal(DIFICULTADMAX, DIFICULTADMIN);
     }
 
-    // Definir la hora de inicio de la tarea
-    time(&tiempoInicio); // Segundos que han pasado desde January 1, 1970
-    structInicio = localtime(&tiempoInicio); // Transforma esos segundos en la fecha y hora actual
-
     // Crear el primer Mr Meeseek
-    pid_t primerMrMeekseek = crearFork(peticion);
-
-    tiempoActual = time(NULL);
-    structActual = *((struct tm*)localtime(&tiempoActual));
+    pid_t primerMrMeekseek = crearFork(peticion, 1);
+    pid_t mrMeeseekAyudante;
 
     if (primerMrMeekseek == 0) { // si es hijo
         printf("\nMr. Meeseeks (%d, %d): Dificultad de %f%%", getpid(), getppid(), dificultad);
 
-        while (difftime(tiempoActual, tiempoInicio) < TIEMPOMAX) { // empieza a contar el tiempo
-            tiempo_tarea = setTiempoTarea(dificultad); // tiempo en que el Mr M responderá a la solicitud
-            
-            tiempoLocal_1 = time(NULL);
-            strucTiempoLocal_1 = *((struct tm*)localtime(&tiempoLocal_1));
+        while (1) { // como que el proceso original modifique una var compartida cuando se acaba el tiempo total (en lugar del 1), no se
 
+            tiempo_solicitud = setTiempoSolicitud(dificultad);
             printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); // mostrar un msg de espera aleatorio
-            printf("%s", mensajeEspera());
+            printf("%s", mensajeEspera()); // este hp mensaje no se porque lo imprime despues que "piensa"
 
-            while (difftime(tiempoLocal_2, tiempoLocal_1) <= tiempo_tarea) { // el Mr M "piensa"
-                
-                // DISMINUIR la dificultad
-                tiempoActual = time(NULL); // ir actualizando el tiempo
-                structActual = *((struct tm*)localtime(&tiempoActual));
+            clock_t inicioRelojSolicitud = clock();
+            double tiempoSolicitudInvertido = 0.0;
 
-                tiempoLocal_2 = time(NULL);
-                strucTiempoLocal_2 = *((struct tm*)localtime(&tiempoLocal_2));
+            while (tiempoSolicitudInvertido < tiempo_solicitud) { // poner a "pensar" al Mr M
+                //printf(" tiempo: %lf\n", tiempoSolicitudInvertido);
+                tiempoSolicitudInvertido = (double)(clock() - inicioRelojSolicitud) / CLOCKS_PER_SEC;
             }
 
-            // meter un if para comparar la dificultad y ver si se necesitan ayudantes
-
             int ayudantesMrM = determinarHijos(dificultad); // Determinar si el Mr M necesita ayuda
-
-            printf("%d ", ayudantesMrM);
 
             if (ayudantesMrM > 0) {
                 printf("\nMr. Meeseeks (%d, %d): Necesitaré ayuda!. Me multiplicaré %d veces", 
                         getpid(), getppid(), ayudantesMrM);
 
-                break;
-                // meter semaforos, manejar la variable compartida "i" de numero de instancias
-                // meter condición de parada para terminar la tarea segun la dificultad diluida
-                // pipe entre el proceso que finalizó la tarea y el padre para hacer la terminación de la tarea
+                if (mrMeeseekAyudante == 1) { // crear los hijos al respectivo padre
+                    N++;
+                    for (int I = 1; I <= ayudantesMrM; I++) {
+                        mrMeeseekAyudante = crearFork(peticion, I);
+                    }
+                }
             }
-            else { // 0 ayudantes
-                // - terminar la tarea
-                // - comunicar con pipes al proceso padre que alguien la resolvió
+            else {
+                // se podria asumir que el mae completó la tarea ?
             }
+
+            break; // <-- solo para probar que el Mr M si "piensa"
         }
-        //kill(getpid(), SIGTERM); // Eliminar el proceso hijo
     }
-    else {
+    else { // proceso original
+        /** el padre debe controlar el tiempo total teniendo como limite
+            el caos planetario, TIEMPOMAX. Se haria como en test.c -> tiempo()
+            no se como manejar esto, pensaba meter aqui mismo el contador del
+            tiempo maximo (5 min) pero cómo se comunica el padre con los hijos
+            para "decirles" que ya terminen ?, o al reves, que un hijo le diga
+            a este mae, pare el contador global porque se hizo la tarea. No se :/
+        **/
         wait(NULL); // esperar a que el Mr Meeseeks resuelva la tarea
     }
     
@@ -290,7 +280,7 @@ void box_Mr_Meeseeks() {
             printf("\nIngrese la hilera matemática:\n>>> ");
             scanf("%s", hileras);
 
-            pid_t pid = crearFork(strcat(hileras, " -> [Cálculo matemático]" ));
+            pid_t pid = crearFork(strcat(hileras, " -> [Cálculo matemático]" ), 1);
 
             if (pid == 0) {
                 int resultado = calculoMatematico(hileras);
@@ -309,7 +299,7 @@ void box_Mr_Meeseeks() {
             printf("\nIngrese el path/comando del programa:\n>>> ");
             scanf("%s", path);
 
-            pid_t pid = crearFork(strcat(path, " -> [Ejecutar un programa]"));
+            pid_t pid = crearFork(strcat(path, " -> [Ejecutar un programa]"), 1);
 
             if (pid == 0) {
                 int status = ejecutarPrograma(path);

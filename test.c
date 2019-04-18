@@ -108,16 +108,49 @@ void semaforo() {
 
 void tiempo() {
     clock_t inicioRelojTotal;
-    clock_t inicioRelojPensar;
     double tiempoTotalInvertido = 0.0;
-    double tiempoPensarInvertido = 0.0;
 
     float TIEMPOMAX = 4;
-    float tiempoPensar = 2;
 
     while (tiempoTotalInvertido < TIEMPOMAX) {
         printf(" tiempo: %lf\n", tiempoTotalInvertido);
         tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
+    }
+
+    /*clock_t inicioRelojTotal = clock(); 
+
+    double tiempoTotalInvertido = 0.0;
+    double tiempoPensarInvertido = 0.0;
+    float TIEMPOMAX = 3.0;
+    float tiempoPensar = 4.1;
+
+    while (tiempoTotalInvertido < TIEMPOMAX) {
+        clock_t inicioRelojPensar = clock();
+        tiempoPensarInvertido = 0.0;
+
+        while (tiempoPensarInvertido < tiempoPensar) {
+            clock_t temp_1 = clock();
+            tiempoPensarInvertido = (double) (temp_1 - inicioRelojPensar) / CLOCKS_PER_SEC;
+            printf("Pensar: %lf\n", tiempoPensarInvertido);
+        }
+        clock_t temp_2 = clock();
+        tiempoTotalInvertido = (double) (temp_2 - inicioRelojTotal) / CLOCKS_PER_SEC;
+        printf("--------------Total: %lf\n", tiempoTotalInvertido);
+        sleep(1);
+    }*/
+}
+
+void pruebaFork() {
+    printf("Primera vez\n");
+    pid_t padre;  
+
+    for (int i = 0; i < 5; i++) {
+        if (padre == 1) {
+            padre = fork(); 
+            
+            if (padre == 0) { sleep(10000); }
+        }
+        printf("forki\n");
     }
 }
 
@@ -125,4 +158,6 @@ int main (int argc, char **argv){
 	//semaforo();
 
     tiempo();
+
+    //pruebaFork();
 }
