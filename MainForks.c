@@ -36,9 +36,11 @@ float TIEMPOMAX = 300.0; // Tiempo máximo antes de que todos los Mr. Meeseeks e
 #define DIFICULTADMAX 100
 #define DIFICULTADMIN 0
 
-// Variable que define la solucion de una tarea
-static int *solucionado;
-static datos_compartidos* datos = NULL;
+static int *solucionado; // variable que define la solucion de una tarea
+static int *pidPrimerMrM; // almacenar el pid del Mr M hijo en caso de declarar caos y asi poder eliminarlo
+static datos_compartidos* datos = NULL; // variables para el mutex lock
+
+static int* fd; // Pipe Global
 
 // Nivel de forks e instancias
 int N = 1;
@@ -127,19 +129,19 @@ void comunicarProcesos(int fd[2], pid_t pid, char mensaje[SIZE]) {
 }
 
 int* crearPipe() { 
-    static int fd[2]; 
+    static int fd_temp[2]; 
     int retornoPipe;
     
-    retornoPipe = pipe(fd); // crear descriptores de tubería
+    retornoPipe = pipe(fd_temp); // crear descriptores de tubería
 
     if (retornoPipe == -1) {
         printf("No se ha podido crear el pipe\n");
     }
-    return fd;
+    return fd_temp;
 }
 
 pid_t crearFork(char peticion[SIZE], int I) {
-    int* fd = crearPipe();
+    fd = crearPipe();
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -174,6 +176,21 @@ char* mensajeEspera() {
     }
 }
 
+void mensajeBomba() {
+    printf("\n");
+    printf("\n         _.-^^---....,,--       ");
+    printf("\n     _--                  --_   ");
+    printf("\n    <                        >) ");
+    printf("\n    |                         | ");
+    printf("\n     -._                   _./  ");
+    printf("\n        ```--. . , ; .--''' ");
+    printf("\n              | |   |           ");
+    printf("\n           .-=||  | |=-.        ");
+    printf("\n           `-=#$-&-$#=-'        ");
+    printf("\n              | ;  :|           ");
+    printf("\n     _____.,-#*&$@*#&#~,._____  \n");
+}
+
 void consultaTextual() {
     char peticion[SIZE], respuesta;
     float dificultad, tiempo_solicitud;
@@ -184,6 +201,11 @@ void consultaTextual() {
                         MAP_SHARED | MAP_ANONYMOUS, -1, 0); // Crear la variable compartida
 	*solucionado = 0; // 0 -> sin solucion, 1 -> solucionado
     
+    // pid del primer Mr M en caso de declarar caos para eliminarlo
+    pidPrimerMrM = mmap(NULL, sizeof *solucionado, PROT_READ | PROT_WRITE, 
+                        MAP_SHARED | MAP_ANONYMOUS, -1, 0); // Crear la variable compartida
+    *pidPrimerMrM = -1;
+
     initDatosCompartidos(); // inicializar memoria compartida
 
     // Inicializar lista para almacenar los procesos que se necesiten
@@ -209,6 +231,7 @@ void consultaTextual() {
     pid_t *mrMeeseekAyudante;
 
     if (primerMrMeekseek == 0) { // si es hijo
+        *pidPrimerMrM = getpid(); // guardar el pid del 1er Mr M en caso de caos planetario para que el proceso padre pueda matarlo
         vector_free(&lista_procesos); // limpiar la lista
         vector_init(&lista_procesos); // inicializa la lista
 
@@ -220,11 +243,13 @@ void consultaTextual() {
             printf("%s", mensajeEspera()); // este hp mensaje no se porqué lo imprime despues que "piensa"
 
             // Mr Meeseeks "piensa"
-            sleep(tiempo_solicitud);
+            sleep(1000000000);
 
-            if (dificultad > 80.01) {
+            if (dificultad > 85.01) {
                 pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido
                 if (!*solucionado) {
+                    /// comunicar a los hijos que se encontró
+                    
                     // variable compartida con el pid del Mr M que hizo la tarea =============================
                     printf("\nMr. Meeseeks (%d, %d): Ready pa!", getpid(), getppid());
                     *solucionado = 1;
@@ -276,16 +301,29 @@ void consultaTextual() {
 
     }
     else { // proceso original
-        
-        // imprimir el mensaje de quien hizo la tarea
-        // hacerlo con pipes
-        // tener una variable compartida para setear el valor pid
+        // controlar el tiempo del caos planetario
+        clock_t inicioRelojTotal = clock();
+        double tiempoTotalInvertido = 0.0;
+
+        while (1) {
+            if (tiempoTotalInvertido > TIEMPOMAX) { // declarar caos planetario
+                mensajeBomba();
+                printf("\n* Box Mr.Meeseeks: Se ha decretado Caos Planetario! *");
+                kill(*pidPrimerMrM, SIGKILL); // matar al primer Mr M que inició todo
+                break;
+            }
+            else {
+                if (*solucionado) {
+
+                }
+                // estar escuchando con un pipe la variable "solucionado" y si se cumple 
+                // recibir el pid del Mr M que completò la tarea 
+            }
+            tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
+        }
 
         wait(NULL); // esperar a que el 1er Mr Meeseeks resuelva la tarea
-
-        printf("\nSoy el padre, terminé de esperar a los chamacos");
     }
-    
 }
 
 // Calculo matematico de operaciones binarias
@@ -381,7 +419,7 @@ void box_Mr_Meeseeks() {
         }
         else if (solicitud == 4) { // Configurar tiempo máximo caos planetario
             printf("\n- Tiempo actual: %lf segundos\n", TIEMPOMAX);
-            printf("¿Desea cambiar el tiempo? [y/n]\n>>> ");
+            printf("\n¿Desea cambiar el tiempo? [y/n]\n>>> ");
             char respuesta;
             scanf(" %c", &respuesta);
 
@@ -392,7 +430,7 @@ void box_Mr_Meeseeks() {
             printf("\nTiempo establecido: %lf \n", TIEMPOMAX);
         }
         else if (solicitud == 5) {
-            printf("\nArroz con pollo");
+            printf("\nArroz con pollo, falta esto!");
         }
         else if (solicitud == -1)
         {
