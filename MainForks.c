@@ -246,8 +246,9 @@ void consultaTextual() {
     }
 
     // Crear el primer Mr Meeseek
-    pid_t primerMrMeekseek = crearFork(peticion, 1);
-    pid_t *mrMeeseekAyudante;
+    // Crear el primer Mr Meeseek
+    pid_t mrMeekseek = crearFork(peticion, 1);
+    //pid_t *mrMeeseekAyudante;
 
     if(primerMrMeekseek == 0){
         vector_free(lista_procesos); // limpiar la lista
@@ -327,7 +328,7 @@ void consultaTextual() {
                     break;
                 }
                 // estar escuchando con un pipe la variable "solucionado" y si se cumple 
-                // recibir el pid del Mr M que completò la tarea 
+                // recibir el pid del Mr M que completó la tarea 
             }
             tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
         }
@@ -372,7 +373,7 @@ void box_Mr_Meeseeks() {
         printf("        [4] - Tiempo máximo para el caos planetario\n");
         printf("        [5] - Consultar información de la Box Mr.Meeseeks");
         printf("\n=================================================================\n\n");
-        printf("Esperando una solicitud: ");
+        printf("Esperando una solicitud: (%d) ", getpid());
 
         int solicitud;
         scanf("%d", &solicitud);
