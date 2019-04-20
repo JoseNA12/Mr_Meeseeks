@@ -202,7 +202,7 @@ void consultaTextual() {
 	*solucionado = 0; // 0 -> sin solucion, 1 -> solucionado
     
     // pid del primer Mr M en caso de declarar caos para eliminarlo
-    pidPrimerMrM = mmap(NULL, sizeof *solucionado, PROT_READ | PROT_WRITE, 
+    pidPrimerMrM = mmap(NULL, sizeof *pidPrimerMrM, PROT_READ | PROT_WRITE, 
                         MAP_SHARED | MAP_ANONYMOUS, -1, 0); // Crear la variable compartida
     *pidPrimerMrM = -1;
 
@@ -226,6 +226,7 @@ void consultaTextual() {
         dificultad = distribucionNormal() * getNumDistrNormal(DIFICULTADMAX, DIFICULTADMIN);
     }
 
+    // Crear el primer Mr Meeseek
     // Crear el primer Mr Meeseek
     pid_t primerMrMeekseek = crearFork(peticion, 1);
     pid_t *mrMeeseekAyudante;
