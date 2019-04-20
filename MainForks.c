@@ -39,6 +39,7 @@ float TIEMPOMAX = 300.0; // Tiempo máximo antes de que todos los Mr. Meeseeks e
 static int *solucionado; // variable que define la solucion de una tarea
 static int *pidPrimerMrM; // almacenar el pid del Mr M hijo en caso de declarar caos y asi poder eliminarlo
 static datos_compartidos* datos = NULL; // variables para el mutex lock
+static vector *lista_procesos;
 
 static int* fd; // Pipe Global
 
@@ -88,6 +89,14 @@ float setTiempoSolicitud(float dificultad) {
         tiempo = TIEMPOMINREQ;
     }
     return tiempo;
+}
+
+float determinarDificultad(float max, float min){
+    float dificultad = distribucionNormal() * getNumDistrNormal(max, min);
+    if(dificultad > 100){
+        dificultad = 100;
+    }
+    return dificultad;
 }
 
 // Determinar la cantidad de Mr Meeseeks a crear
@@ -201,20 +210,27 @@ void consultaTextual() {
                         MAP_SHARED | MAP_ANONYMOUS, -1, 0); // Crear la variable compartida
 	*solucionado = 0; // 0 -> sin solucion, 1 -> solucionado
     
-    // pid del primer Mr M en caso de declarar caos para eliminarlo
-    pidPrimerMrM = mmap(NULL, sizeof *solucionado, PROT_READ | PROT_WRITE, 
+    lista_procesos = mmap(NULL, sizeof *lista_procesos, PROT_READ | PROT_WRITE, 
                         MAP_SHARED | MAP_ANONYMOUS, -1, 0); // Crear la variable compartida
-    *pidPrimerMrM = -1;
+
+    vector_init(lista_procesos);     
 
     initDatosCompartidos(); // inicializar memoria compartida
 
-    // Inicializar lista para almacenar los procesos que se necesiten
-    vector lista_procesos;
-    vector_init(&lista_procesos);
 
     // Consultas al usuario
     printf("\nEscribe tu petición:\n>>> ");
-    scanf("%s", peticion);
+    char caracter;
+    short i = 0;
+    setbuf(stdin, NULL);
+    while(caracter != '\n') {    // termina de leer la entrada de datos
+        caracter = getchar();
+        if (caracter == '\n') { break; }
+        peticion[i] = caracter;        
+        i++;
+    }
+    peticion[i] = '\0';
+
     printf("\n¿Conocés la dificultad de tu petición? [y/n]:\n>>> ");
     scanf(" %c", &respuesta);
 
@@ -224,97 +240,91 @@ void consultaTextual() {
     }
     else {
         dificultad = distribucionNormal() * getNumDistrNormal(DIFICULTADMAX, DIFICULTADMIN);
+        if(dificultad > 100){
+            dificultad = 100;
+        }
     }
 
     // Crear el primer Mr Meeseek
     pid_t primerMrMeekseek = crearFork(peticion, 1);
     pid_t *mrMeeseekAyudante;
 
-    if (primerMrMeekseek == 0) { // si es hijo
-        *pidPrimerMrM = getpid(); // guardar el pid del 1er Mr M en caso de caos planetario para que el proceso padre pueda matarlo
-        vector_free(&lista_procesos); // limpiar la lista
-        vector_init(&lista_procesos); // inicializa la lista
-
-        while (!*solucionado) { // verificar si se ha solucionado la solicitud
-
-            tiempo_solicitud = setTiempoSolicitud(dificultad);
+    if(primerMrMeekseek == 0){
+        vector_free(lista_procesos); // limpiar la lista
+        vector_init(lista_procesos); // inicializa la lista
+        while(!*solucionado){
             printf("\nMr. Meeseeks (%d, %d): Dificultad de %f%%", getpid(), getppid(), dificultad);
-            printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); // mostrar un msg de espera aleatorio
-            printf("%s", mensajeEspera()); // este hp mensaje no se porqué lo imprime despues que "piensa"
-
-            // Mr Meeseeks "piensa"
-            sleep(1000000000);
-
-            if (dificultad > 85.01) {
-                pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido
+            printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); printf("%s", mensajeEspera()); 
+            tiempo_solicitud = setTiempoSolicitud(dificultad);
+            sleep(tiempo_solicitud);
+            if (dificultad > 85.00) {
+                pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
                 if (!*solucionado) {
-                    /// comunicar a los hijos que se encontró
-                    
-                    // variable compartida con el pid del Mr M que hizo la tarea =============================
-                    printf("\nMr. Meeseeks (%d, %d): Ready pa!", getpid(), getppid());
-                    *solucionado = 1;
+                    printf("\n ======================= Mr. Meeseeks (%d, %d): Tarea Solucionada! =====================",getpid(), getppid());
+                    printf("\n");
+                    *solucionado = 1; 
                 }
                 pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
-            }
-            else {
-                int ayudantesMrM = determinarHijos(dificultad); // Determinar si el Mr M necesita ayuda
-
-                if (ayudantesMrM > 0) {
-                    printf("\nMr. Meeseeks (%d, %d): Necesitaré ayuda!. Me multiplicaré %d veces", 
-                            getpid(), getppid(), ayudantesMrM);
-
+            }else{
+                if(!*solucionado){
+                    int ayudantesMrM = determinarHijos(dificultad); // Determinar si el Mr M necesita ayuda
+                    printf("\nMr. Meeseeks (%d, %d): Necesitaré ayuda!. Me multiplicaré %d veces",getpid(), getppid(), ayudantesMrM);
+                    if(dificultad != 0.0){ // disminuir la dificultad para los hijos
+                        dificultad = getNumDistrNormal(DIFICULTADMAX, dificultad);
+                    }  
                     N++;
-                    dificultad = getNumDistrNormal(DIFICULTADMAX, dificultad); // disminuir la dificultad para los hijos
-                    for (int I = 1; I <= 3; I++) {
-                        mrMeeseekAyudante = (pid_t*)malloc(sizeof(pid_t));
-                        *mrMeeseekAyudante = crearFork(peticion, I);
-
-                        if (mrMeeseekAyudante == 0) { // solo el padre crea hijos
-                            printf("\nNUEVO Mr meeseek: (pid:%d) (ppid:%d)", getpid(), getppid());
-                            break; 
-                        } 
-                        else { // si es padre, registre a sus hijos
-                            if (*mrMeeseekAyudante != -1) {
-                                vector_add(&lista_procesos, mrMeeseekAyudante);
-                            } 
-                            else { 
+                    for (int I = 1; I <= ayudantesMrM; I++) {
+                        printf("\n ");
+                        if(!*solucionado){
+                            mrMeeseekAyudante = (pid_t*)malloc(sizeof(pid_t));
+                            *mrMeeseekAyudante = crearFork(peticion, I);
+                            if(*mrMeeseekAyudante == 0){
                                 break;
+                            }else if(*mrMeeseekAyudante < 0){
+                                printf("\n  Ha ocurrido un ERROR al crear el nuevo Mr.Meeseek");
+                                break;
+                            }else{
+                                printf("\nMr. Meeseeks (%d, %d): Estoy agregando mi ayudante %d a la lista",getpid(), getppid(),*mrMeeseekAyudante);
+                                vector_add(lista_procesos, mrMeeseekAyudante);
+                               // printf("\n ");
+                            // sleep(1);
                             }
-                        }
-                    }
-                }
+                        }else{
+                            break;
+                        }                   
+                    } 
+                }else{
+                    break;
+                }    
             }
         }
-        // revisar si el primer Mr M no tiene hijos
-        if (vector_total(&lista_procesos) == 0 ) {
-            printf("\nMr. Meeseeks (%d, %d): Yei lo hice solo, adios un placer ayudarte!", 
-                            getpid(), getppid());
-        } 
-        else { // esperar a todos los Mr M hijos creados
-            for (int i = 0; i < vector_total(&lista_procesos); i++) {
-                pid_t proceso_hijo = *(pid_t *) vector_get(&lista_procesos, i);
-                waitpid(proceso_hijo, NULL, 0);
+        if(*mrMeeseekAyudante != 0){
+            for (int i = 0; i < vector_total(lista_procesos); i++) {
+                pid_t proceso_hijo = *(pid_t *) vector_get(lista_procesos, i);
+                printf("\nMr. Meeseeks (%d, %d): Adios, un placer ayudarte!", proceso_hijo, getpid());
+                printf("\nMr. Meeseeks (%d, %d): Destruyendo al proceso %d!", getpid(), getppid(),proceso_hijo); 
+                free((pid_t *) vector_get(lista_procesos, i));
+                kill(proceso_hijo, SIGKILL);
             }
-            printf("\nMr. Meeseeks (%d, %d): Adios, un placer ayudarte!", 
-                            getpid(), getppid());
+        }else{
+            //printf("\nMr. Meeseeks (%d, %d): Esperando a mi padre!", getpid(), getppid());
+            //printf("\n ");
+            sleep(300);
         }
-
-    }
-    else { // proceso original
+    }else{  // Box MrM
         // controlar el tiempo del caos planetario
         clock_t inicioRelojTotal = clock();
         double tiempoTotalInvertido = 0.0;
-
         while (1) {
             if (tiempoTotalInvertido > TIEMPOMAX) { // declarar caos planetario
                 mensajeBomba();
                 printf("\n* Box Mr.Meeseeks: Se ha decretado Caos Planetario! *");
-                kill(*pidPrimerMrM, SIGKILL); // matar al primer Mr M que inició todo
+                kill(primerMrMeekseek, SIGKILL); // matar al primer Mr M que inició todo
                 break;
             }
             else {
                 if (*solucionado) {
-
+                    break;
                 }
                 // estar escuchando con un pipe la variable "solucionado" y si se cumple 
                 // recibir el pid del Mr M que completò la tarea 
@@ -324,6 +334,7 @@ void consultaTextual() {
 
         wait(NULL); // esperar a que el 1er Mr Meeseeks resuelva la tarea
     }
+    
 }
 
 // Calculo matematico de operaciones binarias
