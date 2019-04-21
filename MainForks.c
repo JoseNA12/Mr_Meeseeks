@@ -19,7 +19,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include "Vector.c"
-
+#include "Tarea.c"
 #include "MainForks_.h"
 
 #define SIZE 256 // Tamaño de la variable para recibir el input del usuario
@@ -43,9 +43,13 @@ static vector *lista_procesos;
 
 static int* fd; // Pipe Global
 
+// Variables para la Bitácora
+struct tarea vectorTareas[256]; // Vector de tareas
+struct tarea tareaSolicitada; // Tarea individual
+int indiceTareas; // Indice para el vector tareas. Se aumenta por cada estructura introducido
+int cantidadMrM;
 // Nivel de forks e instancias
 int N = 1;
-//int I = 0;
 
 // [3]: google-chrome, geany, atom, pinta
 // Compilar con: gcc main.c -o main -lm -pthread
@@ -217,7 +221,6 @@ void consultaTextual() {
 
     initDatosCompartidos(); // inicializar memoria compartida
 
-
     // Consultas al usuario
     printf("\nEscribe tu petición:\n>>> ");
     char caracter;
@@ -230,6 +233,8 @@ void consultaTextual() {
         i++;
     }
     peticion[i] = '\0';
+
+    strcpy(tareaSolicitada.peticion,peticion);
 
     printf("\n¿Conocés la dificultad de tu petición? [y/n]:\n>>> ");
     scanf(" %c", &respuesta);
@@ -247,8 +252,8 @@ void consultaTextual() {
 
     // Crear el primer Mr Meeseek
     // Crear el primer Mr Meeseek
-    pid_t mrMeekseek = crearFork(peticion, 1);
-    //pid_t *mrMeeseekAyudante;
+    pid_t primerMrMeekseek = crearFork(peticion, 1);
+    pid_t *mrMeeseekAyudante;
 
     if(primerMrMeekseek == 0){
         vector_free(lista_procesos); // limpiar la lista
@@ -285,8 +290,10 @@ void consultaTextual() {
                                 printf("\n  Ha ocurrido un ERROR al crear el nuevo Mr.Meeseek");
                                 break;
                             }else{
+                                pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
                                 printf("\nMr. Meeseeks (%d, %d): Estoy agregando mi ayudante %d a la lista",getpid(), getppid(),*mrMeeseekAyudante);
                                 vector_add(lista_procesos, mrMeeseekAyudante);
+                                pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
                                // printf("\n ");
                             // sleep(1);
                             }
@@ -306,6 +313,7 @@ void consultaTextual() {
                 printf("\nMr. Meeseeks (%d, %d): Destruyendo al proceso %d!", getpid(), getppid(),proceso_hijo); 
                 free((pid_t *) vector_get(lista_procesos, i));
                 kill(proceso_hijo, SIGKILL);
+                cantidadMrM++;
             }
         }else{
             //printf("\nMr. Meeseeks (%d, %d): Esperando a mi padre!", getpid(), getppid());
@@ -325,6 +333,7 @@ void consultaTextual() {
             }
             else {
                 if (*solucionado) {
+                    tareaSolicitada.estado = 1;
                     break;
                 }
                 // estar escuchando con un pipe la variable "solucionado" y si se cumple 
@@ -332,7 +341,10 @@ void consultaTextual() {
             }
             tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
         }
-
+        tareaSolicitada.cantidadMrM = cantidadMrM;
+        tareaSolicitada.tiempoDuracion = tiempoTotalInvertido;
+        vectorTareas[indiceTareas] = tareaSolicitada;
+        printf("\n  TAREA SOLICITADA: %f",vectorTareas[indiceTareas].tiempoDuracion);
         wait(NULL); // esperar a que el 1er Mr Meeseeks resuelva la tarea
     }
     
@@ -365,6 +377,8 @@ int ejecutarPrograma(char path[SIZE]) {
 }
 
 void box_Mr_Meeseeks() {
+    indiceTareas = 0;
+    memset(vectorTareas, 0, sizeof(vectorTareas));
     while(1) {
         printf("\n\n======================== Box Mr.Meeseeks ========================\n");
         printf("        [1] - Consulta textual\n");
@@ -377,15 +391,20 @@ void box_Mr_Meeseeks() {
 
         int solicitud;
         scanf("%d", &solicitud);
-
+    
         if (solicitud == 1) { // Consulta textual
             consultaTextual();
         }
         else if (solicitud == 2) // Cálculo matemático
         {
+
             char hileras[SIZE];
             printf("\nIngrese la hilera matemática:\n>>> ");
             scanf("%s", hileras);
+
+            tareaSolicitada = (struct tarea){.peticion = "hileras", .cantidadMrM = 1, .tiempoDuracion = 0.2, .estado = 1};
+            vectorTareas[indiceTareas] = tareaSolicitada;
+            printf("\n  TAREA SOLICITADA: %s",vectorTareas[indiceTareas].peticion);
 
             pid_t pid = crearFork(strcat(hileras, " -> [Cálculo matemático]" ), 1);
 
@@ -399,12 +418,17 @@ void box_Mr_Meeseeks() {
             else {
                 wait(NULL); // Esperar que el proceso hijo complete su tarea
             }
+            indiceTareas++;
         }
         else if (solicitud == 3) // Ejecutar un programa
         {
             char path[SIZE];
             printf("\nIngrese el path/comando del programa:\n>>> ");
             scanf("%s", path);
+
+            tareaSolicitada = (struct tarea){.peticion = "path", .cantidadMrM = 1, .tiempoDuracion = 0.2, .estado = 1};
+            vectorTareas[indiceTareas] = tareaSolicitada;
+            printf("\n  TAREA SOLICITADA: %s",vectorTareas[indiceTareas].peticion);
 
             pid_t pid = crearFork(strcat(path, " -> [Ejecutar un programa]"), 1);
 
@@ -428,6 +452,7 @@ void box_Mr_Meeseeks() {
             else {
                 wait(NULL); // Esperar que el proceso hijo complete su tarea
             }
+            indiceTareas++;
         }
         else if (solicitud == 4) { // Configurar tiempo máximo caos planetario
             printf("\n- Tiempo actual: %lf segundos\n", TIEMPOMAX);
@@ -446,6 +471,20 @@ void box_Mr_Meeseeks() {
         }
         else if (solicitud == -1)
         {
+            
+            for (int i = 0; i < indiceTareas; i++) {
+                printf("\n  Tarea solicitada: %s",vectorTareas[i].peticion);
+                printf("\n  Cantidad MrM empleados: %d",vectorTareas[i].cantidadMrM);
+                printf("\n  Duración: %f",vectorTareas[i].tiempoDuracion);
+                if(vectorTareas[i].estado){
+                    printf("\n  Estado de tarea: Completado");
+                }else{
+                    printf("\n  Estado de tarea: Incompleto");
+                }
+                printf("======================================================================");
+                
+            }
+            
             printf("\n*** La Box Mr.Meeseeks ha sido destruida! ***\n");
             break;
         }
