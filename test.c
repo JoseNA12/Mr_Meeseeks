@@ -154,10 +154,82 @@ void pruebaFork() {
     }
 }
 
+// https://stackoverflow.com/questions/22502124/communication-between-child-and-parent-processes-in-c-linux-parent-process-not
+void pruebaPipe() {
+
+    pid_t pid;
+    /* Hope this is big enough. */
+    char buf[1024]; char buf2[1024];
+    char *cp = "0"; char *cp2 = "0";
+
+    int readpipe[2];
+    int writepipe[2];
+    int a = pipe(readpipe);
+    int b = pipe(writepipe);
+    // check a and b
+
+    pid=fork();
+    // check pid
+
+    if(pid==0)
+    { //CHILD PROCESS
+        /*close(readpipe[1]);
+        close(writepipe[0]);
+        read(readpipe[0],buf,sizeof(buf));
+        printf("\nREAD = %s",buf);*/
+        close(readpipe[0]);
+        cp="2";
+        write(writepipe[1],cp,strlen(cp)+1);
+        close(writepipe[1]);
+    }
+    else
+    { //PARENT PROCESS
+        /*close(readpipe[0]);
+        close(writepipe[1]);
+        cp="HI!! YOU THERE";
+        write(readpipe[1],cp,strlen(cp)+1);*/
+        close(readpipe[1]);
+        read(writepipe[0],buf,sizeof(buf));
+        printf("\n1er RECEIVED %s\n",buf);
+        close(writepipe[0]);
+    }
+
+}
+
+char *calculoMatematico(char hileras[256]) {
+    int a,b;
+    char op;
+    int resultado;
+    char *sresultado = malloc(sizeof(int));
+    if (sscanf(hileras, "%d %c %d", &a, &op, &b) != 3) { // parsear el string y obtener los valores
+        printf("\nMr. Meeseeks (%d, %d): Formato inválido de las hileras\n", getpid(), getppid());
+        return NULL;
+    }
+    else {
+        switch (op) {
+            case '+': resultado = a + b; break;
+            case '-': resultado = a - b; break;
+            case '*': resultado = a * b; break;
+            case '/': resultado = a / b; break;
+            default:
+                printf("\nMr. Meeseeks (%d, %d): Operador de las hileras inválido\n", getpid(), getppid());
+                return NULL;
+        }
+        sprintf(sresultado, "%d", resultado); // resultado valido
+        return sresultado;
+    }
+}
+
 int main (int argc, char **argv){
 	//semaforo();
 
-    tiempo();
+    //tiempo();
 
     //pruebaFork();
+
+    //pruebaPipe();
+
+    printf("%s", calculoMatematico("20*20"));
+
+    return 0;
 }

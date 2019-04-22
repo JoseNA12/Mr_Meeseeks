@@ -204,7 +204,6 @@ void mensajeBomba() {
     printf("\n     _____.,-#*&$@*#&#~,._____  \n");
 }
 
-
 void consultaTextual() {
     char peticion[SIZE], respuesta;
     float dificultad, tiempo_solicitud;
@@ -259,11 +258,13 @@ void consultaTextual() {
     if(primerMrMeekseek == 0){
         vector_free(lista_procesos); // limpiar la lista
         vector_init(lista_procesos); // inicializa la lista
+
         while(!*solucionado){
             printf("\nMr. Meeseeks (%d, %d): Dificultad de %f%%", getpid(), getppid(), dificultad);
             printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); printf("%s", mensajeEspera()); 
             tiempo_solicitud = setTiempoSolicitud(dificultad);
             sleep(tiempo_solicitud);
+
             if (dificultad > 85.00) {
                 pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
                 if (!*solucionado) {
@@ -272,10 +273,12 @@ void consultaTextual() {
                     *solucionado = 1; 
                 }
                 pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
-            }else{
+            }
+            else{
                 if(!*solucionado){
                     int ayudantesMrM = determinarHijos(dificultad); // Determinar si el Mr M necesita ayuda
                     printf("\nMr. Meeseeks (%d, %d): Necesitaré ayuda!. Me multiplicaré %d veces",getpid(), getppid(), ayudantesMrM);
+                    
                     if(dificultad != 0.0){ // disminuir la dificultad para los hijos
                         dificultad = getNumDistrNormal(DIFICULTADMAX, dificultad);
                     }  
@@ -285,6 +288,7 @@ void consultaTextual() {
                         if(!*solucionado){
                             mrMeeseekAyudante = (pid_t*)malloc(sizeof(pid_t));
                             *mrMeeseekAyudante = crearFork(peticion, I);
+
                             if(*mrMeeseekAyudante == 0){
                                 break;
                             }else if(*mrMeeseekAyudante < 0){
@@ -330,7 +334,7 @@ void consultaTextual() {
             }
             else {
                 if (*solucionado) {
-                    tareaSolicitada.estado = 1;
+                    //tareaSolicitada.estado = 1;
                     break;
                 }
                 // estar escuchando con un pipe la variable "solucionado" y si se cumple 
@@ -347,13 +351,14 @@ void consultaTextual() {
 }
 
 // Calculo matematico de operaciones binarias
-int calculoMatematico(char hileras[SIZE]) {
+char* calculoMatematico(char hileras[SIZE]) {
     int a,b;
     char op;
-    int resultado; 
+    int resultado;
+    char *sresultado = malloc(sizeof(int));
     if (sscanf(hileras, "%d %c %d", &a, &op, &b) != 3) { // parsear el string y obtener los valores
         printf("\nMr. Meeseeks (%d, %d): Formato inválido de las hileras\n", getpid(), getppid());
-        return resultado;
+        return NULL;
     }
     else {
         switch (op) {
@@ -363,8 +368,10 @@ int calculoMatematico(char hileras[SIZE]) {
             case '/': resultado = a / b; break;
             default:
                 printf("\nMr. Meeseeks (%d, %d): Operador de las hileras inválido\n", getpid(), getppid());
+                return NULL;
         }
-        return resultado;
+        sprintf(sresultado, "%d", resultado); // resultado valido
+        return sresultado;
     }
 }
 
@@ -381,9 +388,8 @@ void box_Mr_Meeseeks() {
         printf("        [2] - Cálculo matemático\n");
         printf("        [3] - Ejecutar un programa\n\n");
         printf("        [4] - Tiempo máximo para el caos planetario\n");
-        printf("        [5] - Consultar información de la Box Mr.Meeseeks");
-        printf("\n=================================================================\n\n");
-        printf("Esperando una solicitud: (%d) ", getpid());
+        printf("=================================================================\n\n");
+        printf("(%d) Esperando una solicitud: ", getpid());
 
         int solicitud;
         scanf("%d", &solicitud);
@@ -393,34 +399,76 @@ void box_Mr_Meeseeks() {
         }
         else if (solicitud == 2) // Cálculo matemático
         {
-
             char hileras[SIZE];
+
             clock_t inicioRelojTotal = clock();
             double tiempoTotalInvertido = 0.0;
             
             printf("\nIngrese la hilera matemática:\n>>> ");
             scanf("%s", hileras);
 
+            // ----------- pipes -------------
+            char *estadoCompletado;
+            char bufferEstado[20];
+            int readpipe[2];
+            int writepipe[2];
+            int a = pipe(readpipe);
+            int b = pipe(writepipe);
+            // --------------------------------
+
             pid_t pid = crearFork(strcat(hileras, " -> [Cálculo matemático]" ), 1);
 
             if (pid == 0) {
-                int resultado = calculoMatematico(hileras);
+                char *sresultado = calculoMatematico(hileras);
 
-                printf("\nMr. Meeseeks (%d, %d): El resultado es: %d\n", getpid(), getppid(), resultado);
+                if (sresultado != NULL) {
+                    printf("\nMr. Meeseeks (%d, %d): El resultado es: %s\n", getpid(), getppid(), sresultado);
+                    estadoCompletado = "Completado";
+                }
+                else { 
+                    printf("Mr. Meeseeks (%d, %d): Error en la operación ingresada!\n", getpid(), getppid());
+                    estadoCompletado = "Incompleto";
+                }
+
                 printf("Mr. Meeseeks (%d, %d): Fue un placer servirle. Adios!", getpid(), getppid());
-                kill(getpid(), SIGTERM); // Eliminar el proceso hijo
+
+                free(sresultado);
+                // ----------- pipes -------------
+                close(readpipe[0]);
+                write(writepipe[1], estadoCompletado, strlen(estadoCompletado)+1); 
+                close(writepipe[1]);
+                // --------------------------------
+                kill(getpid(), SIGKILL);
             }
             else {
                 wait(NULL); // Esperar que el proceso hijo complete su tarea
+           
+                // ----------- pipes -------------
+                close(readpipe[1]);
+                read(writepipe[0], bufferEstado, sizeof(bufferEstado));
+                close(writepipe[0]);
+                // -------------------------------
+
+                tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
+                tareaSolicitada = (struct tarea){.cantidadMrM = 1, .tiempoDuracion = tiempoTotalInvertido};
+                strcpy(tareaSolicitada.peticion, hileras);
+                strcpy(tareaSolicitada.estado, bufferEstado);
+                vectorTareas[indiceTareas] = tareaSolicitada;
+                indiceTareas++;
             }
-            tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
-            tareaSolicitada = (struct tarea){.peticion = "hileras", .cantidadMrM = 1, .tiempoDuracion = tiempoTotalInvertido, .estado = 1};
-            vectorTareas[indiceTareas] = tareaSolicitada;
-            indiceTareas++;
         }
         else if (solicitud == 3) // Ejecutar un programa
         {
             char path[SIZE];
+            // ----------- pipes -------------
+            char *estadoCompletado;
+            char bufferEstado[20];
+            int readpipe[2];
+            int writepipe[2];
+            int a = pipe(readpipe);
+            int b = pipe(writepipe);
+            // --------------------------------
+
             clock_t inicioRelojTotal = clock();
             double tiempoTotalInvertido = 0.0;
 
@@ -432,27 +480,40 @@ void box_Mr_Meeseeks() {
             if (pid == 0) {
                 int status = ejecutarPrograma(path);
 
-                switch (status) {
-                    case -1:
-                        printf("\nMr. Meeseeks (%d, %d): Error al ejecutar el programa ingresado!\n", getpid(), getppid());
-                        break;
-                    
-                    case 0:
-                        printf("\nMr. Meeseeks (%d, %d): El programa se ha ejecutado!\n", getpid(), getppid());
-                        break;
-                        
-                    default:
-                        break;
+                if (status == 0) {
+                    estadoCompletado = "Completado";
+                    printf("\nMr. Meeseeks (%d, %d): El programa se ha ejecutado!", getpid(), getppid());
                 }
-                kill(getpid(), SIGTERM); // Eliminar el proceso hijo
+                else {
+                    estadoCompletado = "Incompleto";
+                    printf("\nMr. Meeseeks (%d, %d): Error al ejecutar el programa ingresado!", getpid(), getppid());
+                }
+                printf("\nMr. Meeseeks (%d, %d): Fue un placer servirle. Adios!", getpid(), getppid());
+
+                // ----------- pipes -------------
+                close(readpipe[0]);
+                write(writepipe[1], estadoCompletado, strlen(estadoCompletado)+1); 
+                close(writepipe[1]);
+                // -------------------------------
+
+                kill(getpid(), SIGKILL);
             }
             else {
-                wait(NULL); // Esperar que el proceso hijo complete su tarea
+                wait(NULL);
+
+                // ----------- pipes -------------
+                close(readpipe[1]);
+                read(writepipe[0], bufferEstado, sizeof(bufferEstado));
+                close(writepipe[0]);
+                // -------------------------------
+
+                tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
+                tareaSolicitada = (struct tarea){.cantidadMrM = 1, .tiempoDuracion = tiempoTotalInvertido};
+                strcpy(tareaSolicitada.peticion, path); // peticion
+                strcpy(tareaSolicitada.estado, bufferEstado); // mensaje via pipe proveniente del hijo
+                vectorTareas[indiceTareas] = tareaSolicitada;
+                indiceTareas++;
             }
-            tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
-            tareaSolicitada = (struct tarea){.peticion = "path", .cantidadMrM = 1, .tiempoDuracion = tiempoTotalInvertido, .estado = 1};
-            vectorTareas[indiceTareas] = tareaSolicitada;
-            indiceTareas++;
         }
         else if (solicitud == 4) { // Configurar tiempo máximo caos planetario
             printf("\n- Tiempo actual: %lf segundos\n", TIEMPOMAX);
@@ -466,25 +527,19 @@ void box_Mr_Meeseeks() {
             }
             printf("\nTiempo establecido: %lf \n", TIEMPOMAX);
         }
-        else if (solicitud == 5) {
-            printf("\nArroz con pollo, falta esto!");
-        }
         else if (solicitud == -1)
         {
+            printf("\n\n==================================== Bitacora ====================================");
             for (int i = 0; i < indiceTareas; i++) {
+                
                 printf("\n  Tarea solicitada: %s",vectorTareas[i].peticion);
                 printf("\n  Cantidad MrM empleados: %d",vectorTareas[i].cantidadMrM);
                 printf("\n  Duración: %f",vectorTareas[i].tiempoDuracion);
-                if(vectorTareas[i].estado){
-                    printf("\n  Estado de tarea: Completado");
-                }else{
-                    printf("\n  Estado de tarea: Incompleto");
-                }
-                printf("======================================================================");
-                
+                printf("\n  Estado de tarea: "); printf("%s", vectorTareas[i].estado);
+                printf("\n| ------------------------------------------------------------------------------ |");
             }
             
-            printf("\n*** La Box Mr.Meeseeks ha sido destruida! ***\n");
+            printf("\n\n*** La Box Mr.Meeseeks ha sido destruida! ***\n");
             break;
         }
         else
