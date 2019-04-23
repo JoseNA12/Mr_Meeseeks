@@ -222,6 +222,15 @@ void consultaTextual() {
 
     initDatosCompartidos(); // inicializar memoria compartida
 
+    // ----------- pipes -------------
+    char *estadoCompletado = malloc(sizeof(int));;
+    char bufferEstado[20];
+    int readpipe[2];
+    int writepipe[2];
+    int a = pipe(readpipe);
+    int b = pipe(writepipe);
+    // --------------------------------
+
     // Consultas al usuario
     printf("\nEscribe tu petición:\n>>> ");
     char caracter;
@@ -268,8 +277,15 @@ void consultaTextual() {
             if (dificultad > 85.00) {
                 pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
                 if (!*solucionado) {
-                    printf("\n ======================= Mr. Meeseeks (%d, %d): Tarea Solucionada! =====================",getpid(), getppid());
-                    printf("\n");
+                    // ----------- pipes -------------
+                    close(readpipe[0]);
+                    sprintf(estadoCompletado, "%d", getpid());
+                    write(writepipe[1], estadoCompletado, strlen(estadoCompletado)+1); 
+                    close(writepipe[1]);
+                    free(estadoCompletado);
+                    // --------------------------------
+                    //printf("\n ======================= Mr. Meeseeks (%d, %d): Tarea Solucionada! =====================",getpid(), getppid());
+                    //printf("\n");
                     *solucionado = 1; 
                 }
                 pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
@@ -296,7 +312,7 @@ void consultaTextual() {
                                 break;
                             }else{
                                 pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
-                                printf("\nMr. Meeseeks (%d, %d): Estoy agregando mi ayudante %d a la lista",getpid(), getppid(),*mrMeeseekAyudante);
+                                //printf("\nMr. Meeseeks (%d, %d): Estoy agregando mi ayudante %d a la lista",getpid(), getppid(),*mrMeeseekAyudante);
                                 vector_add(lista_procesos, mrMeeseekAyudante);
                                 pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
                             }
@@ -325,6 +341,7 @@ void consultaTextual() {
         // controlar el tiempo del caos planetario
         clock_t inicioRelojTotal = clock();
         double tiempoTotalInvertido = 0.0;
+
         while (1) {
             if (tiempoTotalInvertido > TIEMPOMAX) { // declarar caos planetario
                 mensajeBomba();
@@ -334,6 +351,12 @@ void consultaTextual() {
             }
             else {
                 if (*solucionado) {
+                    // ----------- pipes -------------
+                    close(readpipe[1]);
+                    read(writepipe[0], bufferEstado, sizeof(bufferEstado));
+                    close(writepipe[0]);
+                    printf("\n* Box Mr.Meeseeks: Se ha resuelto la solicitud -> Mr Meeseeks (%s)", bufferEstado);
+                    // -------------------------------
                     //tareaSolicitada.estado = 1;
                     break;
                 }
