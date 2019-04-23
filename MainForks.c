@@ -264,11 +264,11 @@ void consultaTextual() {
     pid_t primerMrMeekseek = crearFork(peticion, 1);
     pid_t *mrMeeseekAyudante;
 
-    if(primerMrMeekseek == 0){
+    if(primerMrMeekseek == 0) {
         vector_free(lista_procesos); // limpiar la lista
         vector_init(lista_procesos); // inicializa la lista
 
-        while(!*solucionado){
+        while(!*solucionado) {
             printf("\nMr. Meeseeks (%d, %d): Dificultad de %f%%", getpid(), getppid(), dificultad);
             printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); printf("%s", mensajeEspera()); 
             tiempo_solicitud = setTiempoSolicitud(dificultad);
@@ -290,12 +290,12 @@ void consultaTextual() {
                 }
                 pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
             }
-            else{
-                if(!*solucionado){
+            else {
+                if(!*solucionado) {
                     int ayudantesMrM = determinarHijos(dificultad); // Determinar si el Mr M necesita ayuda
                     printf("\nMr. Meeseeks (%d, %d): Necesitaré ayuda!. Me multiplicaré %d veces",getpid(), getppid(), ayudantesMrM);
                     
-                    if(dificultad != 0.0){ // disminuir la dificultad para los hijos
+                    if(dificultad != 0.0) { // disminuir la dificultad para los hijos
                         dificultad = getNumDistrNormal(DIFICULTADMAX, dificultad);
                     }  
                     N++;
@@ -316,16 +316,16 @@ void consultaTextual() {
                                 vector_add(lista_procesos, mrMeeseekAyudante);
                                 pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
                             }
-                        }else{ // Se encontro solucion
+                        } else { // Se encontro solucion
                             break; 
                         }                   
                     } 
-                }else{ // Se encontro solucion
+                } else { // Se encontro solucion
                     break;
                 }    
             }
         }
-        if(*mrMeeseekAyudante != 0){
+        if(*mrMeeseekAyudante != 0) {
             for (int i = 0; i < vector_total(lista_procesos); i++) {
                 pid_t proceso_hijo = *(pid_t *) vector_get(lista_procesos, i);
                 printf("\nMr. Meeseeks (%d, %d): Adios, un placer ayudarte!", proceso_hijo, getpid());
@@ -334,10 +334,10 @@ void consultaTextual() {
                 kill(proceso_hijo, SIGKILL);
                 cantidadMrM++;
             }
-        }else{ // Cuando hijo termina antes que el padre. Ponerlo a dormir para que el padre lo mate luego
+        } else { // Cuando hijo termina antes que el padre. Ponerlo a dormir para que el padre lo mate luego
             sleep(300);
         }
-    }else{  // Box MrM
+    } else {  // Box MrM
         // controlar el tiempo del caos planetario
         clock_t inicioRelojTotal = clock();
         double tiempoTotalInvertido = 0.0;
