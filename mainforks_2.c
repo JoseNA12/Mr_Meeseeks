@@ -162,8 +162,10 @@ pid_t crearFork(char peticion[SIZE], int I) {
         fprintf(stderr, "Error al crear el Mr Meeseek :(\n");
     } 
     else if (pid == 0) { // Proceso hijo
+        pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
         printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", 
             getpid(), getppid(), N, I);
+        pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
     }
     // Comunicacion entre 2 procesos mediante un pipe
     comunicarProcesos(fd, pid, peticion);
@@ -263,13 +265,16 @@ void consultaTextual() {
 
     // Crear el primer Mr Meeseek
     pid_t primerMrMeekseek = crearFork(peticion, 1);
-    pid_t mrMeeseekAyudante = -1;
+    pid_t mrMeeseekAyudante = 1;
 
     if(!primerMrMeekseek) {
         
         while (!*solucionado) {
+            pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
             printf("\nMr. Meeseeks (%d, %d): Dificultad de %f%%", getpid(), getppid(), dificultad);
-            printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); printf("%s", mensajeEspera()); 
+            printf("\nMr. Meeseeks (%d, %d): ", getpid(), getppid()); printf("%s", mensajeEspera());
+            pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
+
             sleep(getNumDistrNormal(0, 5));
 
             if (dificultad > 85.01) {
@@ -287,7 +292,8 @@ void consultaTextual() {
                     pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
                 }
                 else {
-                    raise(SIGINT);
+                    
+                    //raise(SIGINT);
                 }
             }
             else if (dificultad <= 0.0) {
@@ -304,15 +310,12 @@ void consultaTextual() {
 
                 N++; 
                 for (int i = 0; i < ayudantesMrM && !*solucionado; i++) {
-                    if (mrMeeseekAyudante != 0) { // solo el padre crea hijos
-                        I++;  
+                    if (mrMeeseekAyudante > 0) { // solo el padre crea hijos
                         mrMeeseekAyudante = crearFork(peticion, I);    
+                        I++;
                     }
-                    else if (mrMeeseekAyudante < 0){
-                        printf("\n  Ha ocurrido un ERROR al crear el nuevo Mr.Meeseek");
-                        break;
-                    }                
                 }
+
                 if (mrMeeseekAyudante < 0) { // ocurrió un error
                     fprintf(stderr, "\nUn Mr. Meeseeks salió deforme :("); 
                 }
@@ -320,10 +323,11 @@ void consultaTextual() {
                     // breteo
                 }
                 else { // soy el proceso padre
-                    wait(NULL);
+                    while(wait(NULL) > 0); // -1 cuando no hay hijos
                 }
             }
         }
+        kill(getpid(), SIGKILL);
     } 
     else {  // Box MrM
         // controlar el tiempo del caos planetario
@@ -503,6 +507,7 @@ void box_Mr_Meeseeks() {
                 close(readpipe[0]);
                 write(writepipe[1], estadoCompletado, strlen(estadoCompletado)+1); 
                 close(writepipe[1]);
+                printf("Mr. Meeseeks (%d, %d): He resulto la tarea!", getpid(), getppid());
                 // -------------------------------
 
                 kill(getpid(), SIGKILL);
@@ -514,6 +519,7 @@ void box_Mr_Meeseeks() {
                 close(readpipe[1]);
                 read(writepipe[0], bufferEstado, sizeof(bufferEstado));
                 close(writepipe[0]);
+                printf("Mr. Meeseeks (%d, %d): He resuelto la solicitud!", getpid(), getppid());
                 // -------------------------------
 
                 tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;

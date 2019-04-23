@@ -196,30 +196,6 @@ void pruebaPipe() {
 
 }
 
-char *calculoMatematico(char hileras[256]) {
-    int a,b;
-    char op;
-    int resultado;
-    char *sresultado = malloc(sizeof(int));
-    if (sscanf(hileras, "%d %c %d", &a, &op, &b) != 3) { // parsear el string y obtener los valores
-        printf("\nMr. Meeseeks (%d, %d): Formato inválido de las hileras\n", getpid(), getppid());
-        return NULL;
-    }
-    else {
-        switch (op) {
-            case '+': resultado = a + b; break;
-            case '-': resultado = a - b; break;
-            case '*': resultado = a * b; break;
-            case '/': resultado = a / b; break;
-            default:
-                printf("\nMr. Meeseeks (%d, %d): Operador de las hileras inválido\n", getpid(), getppid());
-                return NULL;
-        }
-        sprintf(sresultado, "%d", resultado); // resultado valido
-        return sresultado;
-    }
-}
-
 int main (int argc, char **argv){
 	//semaforo();
 
@@ -228,8 +204,56 @@ int main (int argc, char **argv){
     //pruebaFork();
 
     //pruebaPipe();
+    char *estadoCompletado = malloc(sizeof(int));
+    char *p1 = malloc(sizeof(int)); char *p2 = malloc(sizeof(int));
+    char *p3 = malloc(sizeof(int)); p3 = "Solicitud completada! :)";
+    sprintf(p1, "%d", getpid());
+    sprintf(p2, "%d", getppid());
+    snprintf(estadoCompletado, 120, "(%s, %s): %s", p1, p2, p3);
 
-    printf("%s", calculoMatematico("20*20"));
+    printf("%s", estadoCompletado);
+
+    int cantidad_procesos;
+	
+	printf("\nIngrese la cantidad de procesos ha crear: \n");
+	scanf("%d", &cantidad_procesos);
+
+    pid_t primerHijueputa = fork();
+	pid_t pid = -1;
+
+    if (!primerHijueputa) {
+    
+        for (int i = 0; i < cantidad_procesos; i++) {
+            if (pid != 0) { // solo el padre cre hijos
+                pid = fork();
+            }
+            else {
+                break;
+            }
+        }
+        
+        if (pid < 0) { // ocurrió un error
+            fprintf(stderr, "Fork fallo"); 
+            return 1;
+        }
+        else if (pid == 0) { // soy el proceso hijo
+            // execlp("/bin/ls", "ls", NULL);
+            // sleep(3); // hacer el hijo huerfano
+            printf("\nEstoy esperando: %d", getpid());
+            printf("\nHijo pid: %d, ppid: %d\n", getpid(), getppid());
+            
+        }
+        else { // soy el proceso padre
+            //wait(NULL); // esperar por el ultimo creado
+            while(wait(NULL) > 0); // -1 cuando no hay hijos
+            printf("Padre pid: %d, ppid: %d\n", getpid(), getppid());
+        
+        }
+    }
+    else {
+        wait(NULL);
+        printf("\n* Box: terminé *\n");
+    }
 
     return 0;
 }
