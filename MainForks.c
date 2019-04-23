@@ -233,7 +233,7 @@ void consultaTextual() {
 
     // Consultas al usuario
     printf("\nEscribe tu petición:\n>>> ");
-    char caracter;
+    char caracter = '0';
     short i = 0;
     setbuf(stdin, NULL);
     while(caracter != '\n') {    // termina de leer la entrada de datos
@@ -241,7 +241,7 @@ void consultaTextual() {
         if (caracter == '\n') { break; }
         peticion[i] = caracter;        
         i++;
-    }
+    }setbuf(stdin, NULL);
     peticion[i] = '\0';
 
     strcpy(tareaSolicitada.peticion,peticion); // Copiar peticion en la estructura de bitácora
