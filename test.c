@@ -195,7 +195,7 @@ void pruebaPipe() {
     }
 
 }
-
+  
 int main (int argc, char **argv){
 	//semaforo();
 
@@ -219,17 +219,21 @@ int main (int argc, char **argv){
 	scanf("%d", &cantidad_procesos);
 
     pid_t primerHijueputa = fork();
-	pid_t pid = -1;
+	pid_t pid = 1;
 
     if (!primerHijueputa) {
     
-        for (int i = 0; i < cantidad_procesos; i++) {
-            if (pid != 0) { // solo el padre cre hijos
-                pid = fork();
+        clock_t inicioRelojTotal = clock();
+        double tiempoTotalInvertido = 0.0;
+
+        float TIEMPOMAX = 4;
+
+        int i = 0;
+        for (i = 0; i < cantidad_procesos; i++) {
+            if (pid > 0) { // solo el padre cre hijos
+                pid = fork();inicioRelojTotal = clock();
             }
-            else {
-                break;
-            }
+            //else { break; }
         }
         
         if (pid < 0) { // ocurrió un error
@@ -239,8 +243,8 @@ int main (int argc, char **argv){
         else if (pid == 0) { // soy el proceso hijo
             // execlp("/bin/ls", "ls", NULL);
             // sleep(3); // hacer el hijo huerfano
-            printf("\nEstoy esperando: %d", getpid());
-            printf("\nHijo pid: %d, ppid: %d\n", getpid(), getppid());
+            tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
+            printf("\nHijo pid: %d, ppid: %d , %lf\n", getpid(), getppid(), tiempoTotalInvertido);
             
         }
         else { // soy el proceso padre

@@ -18,9 +18,12 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/mman.h>
+
 #include "Vector.c"
 #include "Tarea.c"
+#include "Proceso.c"
 #include "MainForks_.h"
+#include "Colores.c"
 
 #define SIZE 256 // Tamaño de la variable para recibir el input del usuario
 
@@ -47,10 +50,13 @@ struct tarea vectorTareas[256]; // Vector de tareas
 struct tarea tareaSolicitada; // Tarea individual
 int indiceTareas; // Indice para el vector tareas. Se aumenta por cada estructura introducido
 
+// Procesos creados
+struct proceso vectorProcesos[SIZE*20]; // puede almacenar 5120 procesos
+struct proceso proceso;
 
 // Nivel de forks e instancias
 int N = 1;
-int I = 0;
+int I = 1;
 
 // [3]: google-chrome, geany, atom, pinta
 // Compilar con: gcc main.c -o main -lm -pthread
@@ -153,7 +159,6 @@ int* crearPipe() {
     return fd_temp;
 }
 
-
 pid_t crearFork(char peticion[SIZE], int I) {
     fd = crearPipe();
     pid_t pid = fork();
@@ -162,10 +167,10 @@ pid_t crearFork(char peticion[SIZE], int I) {
         fprintf(stderr, "Error al crear el Mr Meeseek :(\n");
     } 
     else if (pid == 0) { // Proceso hijo
-        pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
-        printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", 
-            getpid(), getppid(), N, I);
-        pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
+        //pthread_mutex_lock(&datos->mutex); // bloquear el recurso compartido 
+        Bold_Blue(); printf("\nHi I'm Mr Meeseeks! Look at Meeeee. (%d, %d, %d, %d)\n", 
+            getpid(), getppid(), N, I); Reset_Color();
+        //pthread_mutex_unlock(&datos->mutex); // liberar el recurso compartido
     }
     // Comunicacion entre 2 procesos mediante un pipe
     comunicarProcesos(fd, pid, peticion);
@@ -308,12 +313,13 @@ void consultaTextual() {
 
                 dificultad = getNumDistrNormal(DIFICULTADMAX, dificultad);
 
-                N++; 
-                for (int i = 0; i < ayudantesMrM && !*solucionado; i++) {
+                N++;
+                int i = 0;
+                for (i = 0; i < ayudantesMrM && !*solucionado; i++) {
                     if (mrMeeseekAyudante > 0) { // solo el padre crea hijos
                         mrMeeseekAyudante = crearFork(peticion, I);    
                         I++;
-                    }
+                    } // los hijos tambien recorrer el for, pero se hace para que todos inicien en el "mismo" tiempo
                 }
 
                 if (mrMeeseekAyudante < 0) { // ocurrió un error
@@ -336,8 +342,8 @@ void consultaTextual() {
 
         while (1) {
             if (tiempoTotalInvertido > TIEMPOMAX) { // declarar caos planetario
-                mensajeBomba();
-                printf("\n* Box Mr.Meeseeks: Se ha decretado Caos Planetario! *");
+                Bold_Yellow(); mensajeBomba(); Bold_Red();
+                printf("\n* Box Mr.Meeseeks: Se ha decretado Caos Planetario! *"); Reset_Color();
                 kill(primerMrMeekseek, SIGKILL); // matar al primer Mr M que inició todo
                 break;
             }
@@ -395,13 +401,15 @@ int ejecutarPrograma(char path[SIZE]) {
 void box_Mr_Meeseeks() {
     indiceTareas = 0;
     memset(vectorTareas, 0, sizeof(vectorTareas));
-    while(1) {
+    while(1) { 
+        Bold_Blue();
         printf("\n\n======================== Box Mr.Meeseeks ========================\n");
         printf("        [1] - Consulta textual\n");
         printf("        [2] - Cálculo matemático\n");
         printf("        [3] - Ejecutar un programa\n\n");
         printf("        [4] - Tiempo máximo para el caos planetario\n");
         printf("=================================================================\n\n");
+        Reset_Color();
         printf("(%d) Esperando una solicitud: ", getpid());
 
         int solicitud;
@@ -524,6 +532,7 @@ void box_Mr_Meeseeks() {
 
                 tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
                 tareaSolicitada = (struct tarea){.cantidadMrM = 1, .tiempoDuracion = tiempoTotalInvertido};
+                
                 strcpy(tareaSolicitada.peticion, path); // peticion
                 strcpy(tareaSolicitada.estado, bufferEstado); // mensaje via pipe proveniente del hijo
                 vectorTareas[indiceTareas] = tareaSolicitada;
@@ -546,11 +555,12 @@ void box_Mr_Meeseeks() {
         {
             printf("\n\n==================================== Bitacora ====================================");
             for (int i = 0; i < indiceTareas; i++) {
-                
+                Bold_Yellow();
                 printf("\n  Tarea solicitada: %s",vectorTareas[i].peticion);
                 printf("\n  Cantidad MrM empleados: %d",vectorTareas[i].cantidadMrM);
                 printf("\n  Duración: %f",vectorTareas[i].tiempoDuracion);
                 printf("\n  Estado de tarea: "); printf("%s", vectorTareas[i].estado);
+                Reset_Color();
                 printf("\n| ------------------------------------------------------------------------------ |");
             }
             
