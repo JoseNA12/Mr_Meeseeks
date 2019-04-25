@@ -23,7 +23,7 @@
 #include "Tarea.c"
 #include "Proceso.c"
 #include "MainForks_.h"
-#include "Colores.c" 
+#include "Colores.c"
 
 #define SIZE 256 // Tamaño de la variable para recibir el input del usuario
 
