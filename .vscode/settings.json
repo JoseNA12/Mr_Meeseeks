@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "stdio.h": "c"
-    }
+    },
+    "gitlab.instanceUrl": "http://git.ec.tec.ac.cr"
 }
