@@ -118,13 +118,6 @@ void comunicarProcesos(int fd[2], pid_t pid, char mensaje[SIZE]) {
     }
 }
 
-float diluirDificultad(float dificultad) {
-    float temp1 = randomInt(1, (int) dificultad);
-    float temp2 = (dificultad/100);
-    dificultad = dificultad + (temp1 * temp2);
-    return dificultad;
-}
-
 int* crearPipe() { 
     static int fd_temp[2]; 
     int retornoPipe;
@@ -299,7 +292,9 @@ struct solicitud consultaTextual() {
                         getpid(), getppid(), ayudantesMrM);
 
                 // ------------------------ Dificultad ------------------------
-                dificultad = diluirDificultad(dificultad);
+                float temp1 = randomInt(1, (int) dificultad);
+                float temp2 = (dificultad/1000);
+                dificultad = dificultad + (temp1 * temp2);
                 // ------------------------------------------------------------
 
                 N++;
@@ -351,7 +346,7 @@ struct solicitud consultaTextual() {
             }
         }
         //Revisa si es proceso sin hijos
-        /* if (vector_total(lista_procesos) == 0 ) {
+     /*   if (vector_total(lista_procesos) == 0 ) {
             printf("\nMr. Meeseeks (%d, %d): Adios, fue un placer ayudar!\n", getpid(), getppid());
         } 
         else {
