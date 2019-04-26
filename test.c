@@ -3,108 +3,14 @@
 #include <sys/types.h>      /* key_t, sem_t, pid_t      */
 #include <sys/shm.h>        /* shmat(), IPC_RMID        */
 #include <errno.h>          /* errno, ECHILD            */
-#include <semaphore.h>      /* sem_open(), sem_destroy(), sem_wait().. */
 #include <fcntl.h>          /* O_CREAT, O_EXEC          */
 #include <sys/wait.h>
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
 #include <math.h>
+#include <signal.h>
 
-
-void semaforo() {
-	int i;                        /*      loop variables          */
-    key_t shMemoryKey;            /*      shared memory key       */
-    int shMemoryID;               /*      shared memory id        */
-    sem_t *miSemaforo;            /*      synch semaphore         *//*shared */
-    pid_t pid;                    /*      fork pid                */
-    int *sharedVariable;          /*      shared variable         *//*shared */
-    unsigned int n;               /*      fork count              */
-    unsigned int value;           /*      semaphore value         */
-
-    /* initialize a shared variable in shared memory */
-    shMemoryKey = ftok("/dev/null", 5);       /* valid directory name and a number */
-    printf("shMemoryKey for sharedVariable = %d\n", shMemoryKey);
-    shMemoryID = shmget(shMemoryKey, sizeof (int), 0644 | IPC_CREAT);
-    if (shMemoryID < 0){                           /* shared memory error check */
-        perror("shmget\n");
-        exit(1);
-    }
-
-    sharedVariable = (int *) shmat (shMemoryID, NULL, 0);   /* attach sharedVariable to shared memory */
-    *sharedVariable = 0;
-    printf("sharedVariable=%d is allocated in shared memory.\n\n", *sharedVariable);
-
-    /********************************************************/
-
-    printf("How many children do you want to fork?\n");
-    printf("Fork count: ");
-    scanf("%u", &n);
-
-    printf("What do you want the semaphore value to be?\n");
-    printf("Semaphore value: ");
-    scanf("%u", &value);
-
-    /* initialize semaphores for shared processes */
-    miSemaforo = sem_open("pSem", O_CREAT | O_EXCL, 0644, value); 
-    /* name of semaphore is "pSem", semaphore is reached using this name */
-
-    printf("semaphores initialized.\n\n");
-
-
-    /* fork child processes */
-    for (i = 0; i < n; i++){
-        pid = fork();
-        if (pid < 0) {
-        /* check for error      */
-            sem_unlink("pSem");   
-            sem_close(miSemaforo);  
-            /* unlink prevents the semaphore existing forever */
-            /* if a crash occurs during the execution         */
-            printf ("Fork error.\n");
-        }
-        else if (pid == 0)
-            break;                  /* child processes */
-    }
-
-
-    /******************************************************/
-    /******************   PARENT PROCESS   ****************/
-    /******************************************************/
-    if (pid != 0) {
-        /* wait for all children to exit */
-        while (pid = waitpid (-1, NULL, 0)){
-            if (errno == ECHILD)
-                break;
-        }
-
-        printf ("\nParent: All children have exited.\n");
-
-        /* shared memory detach */
-        shmdt(sharedVariable);
-        shmctl(shMemoryID, IPC_RMID, 0);
-
-        /* cleanup semaphores */
-        sem_unlink("pSem");   
-        sem_close(miSemaforo);  
-        /* unlink prevents the semaphore existing forever */
-        /* if a crash occurs during the execution         */
-        exit(0);
-    }
-
-    /******************************************************/
-    /******************   CHILD PROCESS   *****************/
-    /******************************************************/
-    else {
-        sem_wait(miSemaforo);           /* sharedVariable operation */
-        printf("  Child(%d) is in critical section.\n", i);
-        sleep(1);
-        *sharedVariable += i % 3;              /* increment *sharedVariable by 0, 1 or 2 based on i */
-        printf("  Child(%d) new value of *sharedVariable=%d.\n", i, *sharedVariable);
-        sem_post(miSemaforo);           /* V operation */
-        exit(0);
-    }
-}
 
 void tiempo() {
     clock_t inicioRelojTotal;
@@ -195,8 +101,72 @@ void pruebaPipe() {
     }
 
 }
+
+void prueba_fork2() {
+
+    int cantidad_procesos;
+	
+    pid_t pid;
+    sleep(2);
+    for (int j = 0; j < 100; j++) {
+        if (pid != 0) {
+            pid = fork();
+
+            if (pid != 0) {
+                pid = fork();
+            }
+        }
+        else {
+            break;
+        }
+    }
+    
+    if (pid < 0) { // ocurrió un error
+        fprintf(stderr, "Fork fallo"); 
+    }
+    else if (pid == 0) { // soy el proceso hijo
+        // execlp("/bin/ls", "ls", NULL);
+        // sleep(3); // hacer el hijo huerfano
+        printf("\nHijo pid: %d, ppid: %d\n", getpid(), getppid());
+    }
+    else { // soy el proceso padre
+        while(wait(NULL) > 0); // esperar por el ultimo creado
+        printf("Padre pid: %d, ppid: %d\n", getpid(), getppid());
+    }
+
+
+}
+
+float getRand(int range)
+{
+	float r = ((float)rand() / 15) * range;
+	return r;
+}
+
+float distribucionNormal(){
+    srand(time(NULL));  // Reiniciar la semilla de rand()
+    int i = 1; float aux;
+
+    int CANTMUESTRAS = 1000;
+    int VARIANZA = 1;
+    int MEDIA = 0;
+    int RANGO = 1;
+
+    for(i; i <= CANTMUESTRAS; i++){
+        aux += (float)rand()/RAND_MAX;
+    }
+    return fabs(VARIANZA * sqrt((float)12/CANTMUESTRAS) * (aux - (float)CANTMUESTRAS/2) + MEDIA) * RANGO;
+}
   
-int main (int argc, char **argv){
+float randomFloat(float min,float max) {
+	return (float) min + (rand()/(float)(RAND_MAX))*(max-min);
+}
+
+int randomInt(int min,int max) {
+	return (rand() % (max-min)) + min;
+}
+
+void main (int argc, char **argv){
 	//semaforo();
 
     //tiempo();
@@ -204,60 +174,6 @@ int main (int argc, char **argv){
     //pruebaFork();
 
     //pruebaPipe();
-    char *estadoCompletado = malloc(sizeof(int));
-    char *p1 = malloc(sizeof(int)); char *p2 = malloc(sizeof(int));
-    char *p3 = malloc(sizeof(int)); p3 = "Solicitud completada! :)";
-    sprintf(p1, "%d", getpid());
-    sprintf(p2, "%d", getppid());
-    snprintf(estadoCompletado, 120, "(%s, %s): %s", p1, p2, p3);
 
-    printf("%s", estadoCompletado);
-
-    int cantidad_procesos;
-	
-	printf("\nIngrese la cantidad de procesos ha crear: \n");
-	scanf("%d", &cantidad_procesos);
-
-    pid_t primerHijueputa = fork();
-	pid_t pid = 1;
-
-    if (!primerHijueputa) {
-    
-        clock_t inicioRelojTotal = clock();
-        double tiempoTotalInvertido = 0.0;
-
-        float TIEMPOMAX = 4;
-
-        int i = 0;
-        for (i = 0; i < cantidad_procesos; i++) {
-            if (pid > 0) { // solo el padre cre hijos
-                pid = fork();inicioRelojTotal = clock();
-            }
-            //else { break; }
-        }
-        
-        if (pid < 0) { // ocurrió un error
-            fprintf(stderr, "Fork fallo"); 
-            return 1;
-        }
-        else if (pid == 0) { // soy el proceso hijo
-            // execlp("/bin/ls", "ls", NULL);
-            // sleep(3); // hacer el hijo huerfano
-            tiempoTotalInvertido = (double)(clock() - inicioRelojTotal) / CLOCKS_PER_SEC;
-            printf("\nHijo pid: %d, ppid: %d , %lf\n", getpid(), getppid(), tiempoTotalInvertido);
-            
-        }
-        else { // soy el proceso padre
-            //wait(NULL); // esperar por el ultimo creado
-            while(wait(NULL) > 0); // -1 cuando no hay hijos
-            printf("Padre pid: %d, ppid: %d\n", getpid(), getppid());
-        
-        }
-    }
-    else {
-        wait(NULL);
-        printf("\n* Box: terminé *\n");
-    }
-
-    return 0;
+    prueba_fork2();
 }
