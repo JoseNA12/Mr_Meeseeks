@@ -448,10 +448,10 @@ void box_Mr_Meeseeks() {
                     close(writepipe[1]);
                     // --------------------------------
                 }
+                sleep(1);
                 break;
             }
             else {
-            //    struct solicitud solicitudTextual;
                 // ----------- pipes -------------
                 close(readpipe[1]);
                 read(writepipe[0], tareaSolicitada, sizeof(struct solicitud));
@@ -481,17 +481,20 @@ void box_Mr_Meeseeks() {
             int b = pipe(writepipe);
             // --------------------------------
 
-            pid_t pid = crearFork(strcat(hileras, " -> [Cálculo matemático]"), 1);
+            char temp[SIZE];
+            strcpy(temp, hileras);
+
+            pid_t pid = crearFork(strcat(temp, " -> [Cálculo matemático]"), 1);
 
             if (pid == 0) {
                 char *sresultado = calculoMatematico(hileras);
 
                 if (sresultado != NULL) {
-                    printf("\nMr. Meeseeks (%d, %d): El resultado es: %s\n", getpid(), getppid(), sresultado);
+                    printf("\nMr. Meeseeks (%d, %d, %d, %d): El resultado es: %s\n", getpid(), getppid(), 1, 1, sresultado);
                     estadoCompletado = "Completada";
                 }
                 else { 
-                    printf("Mr. Meeseeks (%d, %d): Error en la operación ingresada!\n", getpid(), getppid());
+                    printf("Mr. Meeseeks (%d, %d, %d, %d): Error en la operación ingresada!\n", getpid(), getppid(), 1, 1);
                     estadoCompletado = "Incompleta";
                 }
 
@@ -502,7 +505,7 @@ void box_Mr_Meeseeks() {
                 close(writepipe[1]);
                 // --------------------------------
 
-                printf("Mr. Meeseeks (%d, %d): Fue un placer servirle. Adios!", getpid(), getppid());
+                printf("Mr. Meeseeks (%d, %d, %d, %d): Fue un placer servirle. Adios!", getpid(), getppid(), 1, 1);
                 break;
             }
             else {
@@ -522,7 +525,7 @@ void box_Mr_Meeseeks() {
                     .tiempoDuracion = tiempoTotalInvertido
                     };
 
-                strcpy(tareaSolicitada->peticion, hileras);
+                strcpy(tareaSolicitada->peticion, temp);
                 strcpy(tareaSolicitada->estado, bufferEstado);
 
                 vector_add(lista_solicitudes, tareaSolicitada);
@@ -533,7 +536,7 @@ void box_Mr_Meeseeks() {
         {
             char path[SIZE];
             // ----------- pipes -------------
-            char *estadoCompletado;
+            char *estadoCompletado = "Incompleta";
             char bufferEstado[20];
             int readpipe[2];
             int writepipe[2];
@@ -544,23 +547,25 @@ void box_Mr_Meeseeks() {
             clock_t inicioRelojTotal = clock();
             double tiempoTotalInvertido = 0.0;
 
-            printf("\nIngrese el path/comando del programa:\n>>> ");
+            printf("\nIngrese un path o comando a ejecutar:\n>>> ");
             scanf("%s", path);
 
-            pid_t pid = crearFork(strcat(path, " -> [Ejecutar un programa]"), 1);
+            char temp[SIZE];
+            strcpy(temp, path);
+
+            pid_t pid = crearFork(strcat(temp, " -> [Ejecutar un comando/programa]"), 1);
 
             if (pid == 0) {
+                printf("\n");
                 int status = ejecutarPrograma(path);
 
                 if (status == 0) {
                     estadoCompletado = "Completada";
-                    printf("\nMr. Meeseeks (%d, %d): El programa se ha ejecutado!", getpid(), getppid());
+                    printf("\nMr. Meeseeks (%d, %d, %d, %d): El comando/programa se ha ejecutado!", getpid(), getppid(), 1, 1);
                 }
                 else {
-                    estadoCompletado = "Incompleta";
-                    printf("\nMr. Meeseeks (%d, %d): Error al ejecutar el programa ingresado!", getpid(), getppid());
+                    printf("\nMr. Meeseeks (%d, %d, %d, %d): Error al ejecutar el comando/programa ingresado!", getpid(), getppid(), 1, 1);
                 }
-                printf("\nMr. Meeseeks (%d, %d): He resulto la solicitud!", getpid(), getppid());
 
                 // ----------- pipes -------------
                 close(readpipe[0]);
@@ -568,7 +573,7 @@ void box_Mr_Meeseeks() {
                 close(writepipe[1]);
                 // -------------------------------
 
-                printf("\nMr. Meeseeks (%d, %d): Fue un placer servirle. Adios!", getpid(), getppid());
+                printf("\nMr. Meeseeks (%d, %d, %d, %d): Fue un placer servirle. Adios!", getpid(), getppid(), 1, 1);
                 break;
             }
             else {
@@ -588,7 +593,7 @@ void box_Mr_Meeseeks() {
                     .tiempoDuracion = tiempoTotalInvertido
                     };
 
-                strcpy(tareaSolicitada->peticion, path);
+                strcpy(tareaSolicitada->peticion, temp);
                 strcpy(tareaSolicitada->estado, bufferEstado);
 
                 vector_add(lista_solicitudes, tareaSolicitada);
